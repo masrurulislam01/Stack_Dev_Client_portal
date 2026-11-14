@@ -1,4 +1,9 @@
-export {formatBDT, formatPdfBDT} from '@/lib/constants';
+export function formatBDT(amount: number): string {
+  const safeAmount = Number.isFinite(amount) ? amount : 0;
+  return `৳${new Intl.NumberFormat('en-US', {
+    maximumFractionDigits: 0,
+  }).format(safeAmount)}`;
+}
 
 export function formatDateDisplay(dateStr: string): string {
   if (!dateStr) return '—';

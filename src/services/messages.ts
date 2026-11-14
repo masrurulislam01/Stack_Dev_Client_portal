@@ -1,14 +1,9 @@
-import {supabase} from '@/lib/supabase';
-import {createSignedUrlMap} from '@/services/files';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {MessageReadRow, MessageRow} from '@/types/database';
-import {
-  createMessageApiSchema,
-  updateMessageApiSchema,
-  type ProjectMessageAttachment,
-  type ProjectMessageRecord,
-} from '@/types/portal';
-import {getFileExtension} from '@/utils/fileSharing';
+import {supabase} from '../lib/supabase';
+import type {MessageReadRow, MessageRow} from '../types/database';
+import type {ProjectMessageAttachment, ProjectMessageRecord} from '../types/portal';
+import {getFileExtension} from '../utils/fileSharing';
+import {createSignedUrlMap} from './files';
+import {getErrorMessage} from './serviceUtils';
 
 interface JoinedFileMeta {
   id?: string | null;
@@ -161,15 +156,13 @@ export async function getById(
 }
 
 export async function create(input: CreateMessageInput): Promise<ProjectMessageRecord> {
-  const validated = parseApiInput(createMessageApiSchema, input);
-
   const {data, error} = await supabase
     .from('messages')
     .insert({
-      project_id: validated.projectId,
-      sender_id: validated.senderId,
-      body: validated.text,
-      file_id: validated.fileId ?? null,
+      project_id: input.projectId,
+      sender_id: input.senderId,
+      body: input.text.trim(),
+      file_id: input.fileId ?? null,
     })
     .select(MESSAGE_SELECT)
     .single();
@@ -184,18 +177,16 @@ export async function create(input: CreateMessageInput): Promise<ProjectMessageR
     : new Map<string, string>();
 
   return mapMessageRow(row, signedMap, {
-    viewerId: validated.senderId,
-    viewerName: validated.senderName,
-    viewerRole: validated.senderRole,
+    viewerId: input.senderId,
+    viewerName: input.senderName,
+    viewerRole: input.senderRole,
   });
 }
 
 export async function update(id: string, input: UpdateMessageInput): Promise<ProjectMessageRecord> {
-  const validated = parseApiInput(updateMessageApiSchema, input);
-
   const {data, error} = await supabase
     .from('messages')
-    .update({body: validated.text})
+    .update({body: input.text.trim()})
     .eq('id', id)
     .select(MESSAGE_SELECT)
     .single();

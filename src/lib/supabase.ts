@@ -1,5 +1,5 @@
 import {createClient, type SupabaseClient} from '@supabase/supabase-js';
-import {env, envValidationError} from '@/lib/env';
+import {env, envValidationError} from './env';
 
 /**
  * Single shared Supabase client for browser usage (anon/publishable key only).

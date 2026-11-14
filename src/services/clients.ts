@@ -1,11 +1,7 @@
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {ClientRow} from '@/types/database';
-import {
-  createClientApiSchema,
-  updateClientApiSchema,
-  type ClientRecord,
-} from '@/types/portal';
+import {supabase} from '../lib/supabase';
+import type {ClientRow} from '../types/database';
+import type {ClientRecord} from '../types/portal';
+import {getErrorMessage} from './serviceUtils';
 
 export interface CreateClientInput {
   companyName: string;
@@ -80,19 +76,18 @@ export async function getById(id: string): Promise<ClientRecord | null> {
 }
 
 export async function create(input: CreateClientInput): Promise<ClientRecord> {
-  const validated = parseApiInput(createClientApiSchema, input);
-  const cleanContactName = validated.contactName;
-  const cleanCompanyName = validated.companyName || cleanContactName;
-  const cleanEmail = validated.email.toLowerCase();
+  const cleanContactName = input.contactName.trim();
+  const cleanCompanyName = input.companyName.trim() || cleanContactName;
+  const cleanEmail = input.email.trim().toLowerCase();
 
   const {data, error} = await supabase
     .from('clients')
     .insert({
       company_name: cleanCompanyName,
       contact_name: cleanContactName,
-      phone: validated.phone,
+      phone: (input.phone ?? '').trim(),
       email: cleanEmail,
-      notes: validated.notes,
+      notes: (input.notes ?? '').trim(),
     })
     .select('id, company_name, contact_name, phone, email, notes, created_at')
     .single();
@@ -105,23 +100,22 @@ export async function create(input: CreateClientInput): Promise<ClientRecord> {
 }
 
 export async function update(id: string, input: UpdateClientInput): Promise<ClientRecord> {
-  const validated = parseApiInput(updateClientApiSchema, input);
   const payload: Record<string, string> = {};
-  if (validated.contactName !== undefined) {
-    payload.contact_name = validated.contactName;
+  if (input.contactName !== undefined) {
+    payload.contact_name = input.contactName.trim();
   }
-  if (validated.companyName !== undefined) {
+  if (input.companyName !== undefined) {
     payload.company_name =
-      validated.companyName || validated.contactName || '';
+      input.companyName.trim() || input.contactName?.trim() || '';
   }
-  if (validated.phone !== undefined) {
-    payload.phone = validated.phone;
+  if (input.phone !== undefined) {
+    payload.phone = input.phone.trim();
   }
-  if (validated.email !== undefined) {
-    payload.email = validated.email.toLowerCase();
+  if (input.email !== undefined) {
+    payload.email = input.email.trim().toLowerCase();
   }
-  if (validated.notes !== undefined) {
-    payload.notes = validated.notes;
+  if (input.notes !== undefined) {
+    payload.notes = input.notes.trim();
   }
 
   const {data, error} = await supabase

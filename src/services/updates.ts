@@ -1,11 +1,7 @@
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {UpdateRow} from '@/types/database';
-import {
-  createUpdateApiSchema,
-  updateUpdateApiSchema,
-  type ProjectUpdateRecord,
-} from '@/types/portal';
+import {supabase} from '../lib/supabase';
+import type {UpdateRow} from '../types/database';
+import type {ProjectUpdateRecord} from '../types/portal';
+import {getErrorMessage} from './serviceUtils';
 
 interface UpdateJoinedRow extends UpdateRow {
   projects?: {title?: string | null; client_id?: string | null} | null;
@@ -127,14 +123,12 @@ export async function getById(id: string): Promise<ProjectUpdateRecord | null> {
 }
 
 export async function create(input: CreateUpdateInput): Promise<ProjectUpdateRecord> {
-  const validated = parseApiInput(createUpdateApiSchema, input);
-
   const {data, error} = await supabase
     .from('updates')
     .insert({
-      project_id: validated.projectId,
-      author_id: validated.authorId || null,
-      body: encodeUpdateBody(validated.message, validated.attachments),
+      project_id: input.projectId,
+      author_id: input.authorId || null,
+      body: encodeUpdateBody(input.message, input.attachments),
     })
     .select(UPDATE_SELECT)
     .single();
@@ -147,12 +141,10 @@ export async function create(input: CreateUpdateInput): Promise<ProjectUpdateRec
 }
 
 export async function update(id: string, input: UpdateUpdateInput): Promise<ProjectUpdateRecord> {
-  const validated = parseApiInput(updateUpdateApiSchema, input);
-
   const {data, error} = await supabase
     .from('updates')
     .update({
-      body: encodeUpdateBody(validated.message, validated.attachments),
+      body: encodeUpdateBody(input.message, input.attachments),
     })
     .eq('id', id)
     .select(UPDATE_SELECT)

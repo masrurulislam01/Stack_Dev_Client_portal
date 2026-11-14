@@ -1,6 +1,8 @@
-import type {InvoiceRecord, InvoiceStatus} from '@/types/portal';
+import type {InvoiceLineItem, InvoiceRecord, InvoiceStatus} from '../types/portal';
 
-export {AGENCY_ADDRESS, AGENCY_NAME, AGENCY_PHONE} from '@/lib/constants';
+export const AGENCY_NAME = 'Stack Dev';
+export const AGENCY_ADDRESS = 'Stack Dev, Savar, Dhaka';
+export const AGENCY_PHONE = '+880 1963-131282';
 
 export function getTodayIsoDate(): string {
   return new Date().toLocaleDateString('en-CA');
@@ -36,4 +38,62 @@ export function generateNextInvoiceNumber(
   }
 
   return `${prefix}${String(maxSeq + 1).padStart(4, '0')}`;
+}
+
+export function mapInvoiceDoc(id: string, data: Record<string, unknown>): InvoiceRecord {
+  const rawStatus = String(data.status ?? 'Sent');
+  const status: InvoiceStatus =
+    rawStatus === 'Draft' ||
+    rawStatus === 'Sent' ||
+    rawStatus === 'Paid' ||
+    rawStatus === 'Overdue'
+      ? rawStatus
+      : rawStatus.toLowerCase() === 'paid'
+        ? 'Paid'
+        : rawStatus.toLowerCase() === 'overdue'
+          ? 'Overdue'
+          : rawStatus.toLowerCase() === 'draft'
+            ? 'Draft'
+            : 'Sent';
+
+  const rawItems = Array.isArray(data.lineItems) ? data.lineItems : [];
+  const lineItems: InvoiceLineItem[] = rawItems
+    .map((item) => {
+      if (!item || typeof item !== 'object') return null;
+      const obj = item as Record<string, unknown>;
+      const quantity = Number(obj.quantity ?? 1);
+      const unitPrice = Number(obj.unitPrice ?? 0);
+      const total = Number(obj.total ?? quantity * unitPrice);
+      return {
+        description: String(obj.description ?? ''),
+        quantity,
+        unitPrice,
+        total,
+      };
+    })
+    .filter((item): item is InvoiceLineItem => item !== null);
+
+  const paymentMethod = String(data.paymentMethod ?? '').trim().slice(0, 120);
+
+  return {
+    id,
+    clientId: String(data.clientId ?? ''),
+    visibleToClientId: String(data.visibleToClientId ?? ''),
+    clientName: String(data.clientName ?? ''),
+    clientEmail: String(data.clientEmail ?? ''),
+    projectId: String(data.projectId ?? ''),
+    projectTitle: String(data.projectTitle ?? ''),
+    invoiceNumber: String(data.invoiceNumber ?? id),
+    lineItems,
+    amount: Number(data.amount ?? 0),
+    issueDate: String(data.issueDate ?? ''),
+    dueDate: String(data.dueDate ?? ''),
+    notes: String(data.notes ?? ''),
+    status,
+    paymentMethod,
+    paymentReference: String(data.paymentReference ?? ''),
+    paidAt: data.paidAt ?? null,
+    createdAt: data.createdAt,
+    updatedAt: data.updatedAt,
+  };
 }

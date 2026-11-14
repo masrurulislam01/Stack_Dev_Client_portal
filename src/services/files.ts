@@ -1,16 +1,12 @@
-import {SIGNED_URL_EXPIRY_SECONDS, STORAGE_BUCKET} from '@/lib/constants';
-import {env} from '@/lib/env';
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {FileRow} from '@/types/database';
-import {
-  createFileMetadataApiSchema,
-  updateFileMetadataApiSchema,
-  type ProjectFileRecord,
-} from '@/types/portal';
-import {getFileExtension, sanitizeStorageFileName} from '@/utils/fileSharing';
+import {env} from '../lib/env';
+import {supabase} from '../lib/supabase';
+import type {FileRow} from '../types/database';
+import type {ProjectFileRecord} from '../types/portal';
+import {getFileExtension, sanitizeStorageFileName} from '../utils/fileSharing';
+import {getErrorMessage} from './serviceUtils';
 
-export {SIGNED_URL_EXPIRY_SECONDS, STORAGE_BUCKET};
+export const STORAGE_BUCKET = 'project-files';
+export const SIGNED_URL_EXPIRY_SECONDS = 60;
 
 export class UploadCancelledError extends Error {
   constructor(message = 'Upload was cancelled.') {
@@ -112,6 +108,8 @@ async function uploadBlobWithProgress(params: {
   const encodedPath = encodeStorageObjectPath(storagePath);
   const uploadUrl = `${env.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${encodedPath}`;
 
+  // Wrap in a File with canonical MIME type so multipart FormData sends the exact
+  // allowed Content-Type even when the OS reports empty or application/octet-stream.
   const normalizedFile = new File([file], safeName, {type: mimeType});
   const formData = new FormData();
   formData.append('cacheControl', '3600');
@@ -139,6 +137,7 @@ async function uploadBlobWithProgress(params: {
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) {
+        // Reserve 95–100% for inserting the database metadata row
         const pct = Math.min(95, Math.max(1, Math.round((event.loaded / event.total) * 95)));
         onProgress?.(pct, event.loaded, event.total);
       }
@@ -350,12 +349,15 @@ async function removeStorageObjectQuietly(storagePath: string): Promise<void> {
 }
 
 export async function create(input: CreateFileInput): Promise<ProjectFileRecord> {
-  const validated = parseApiInput(createFileMetadataApiSchema, {
-    projectId: input.projectId,
-    clientId: input.clientId,
-    uploadedByUid: input.uploadedByUid,
-    mimeType: input.mimeType,
-  });
+  if (!input.clientId || !input.projectId || !input.uploadedByUid) {
+    const err = new Error('Missing project, client, or user identifier for upload.');
+    console.error('[files.ts] Missing required identifiers:', {
+      clientId: input.clientId,
+      projectId: input.projectId,
+      uploadedByUid: input.uploadedByUid,
+    });
+    throw err;
+  }
 
   const {
     data: {session},
@@ -369,18 +371,19 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
 
   const fileUuid = crypto.randomUUID();
   const safeName = sanitizeStorageFileName(input.file.name);
-  const storagePath = `${validated.clientId}/${validated.projectId}/${fileUuid}-${safeName}`;
+  const storagePath = `${input.clientId}/${input.projectId}/${fileUuid}-${safeName}`;
 
   await uploadBlobWithProgress({
     storagePath,
     file: input.file,
     safeName,
-    mimeType: validated.mimeType,
+    mimeType: input.mimeType,
     accessToken: session.access_token,
     signal: input.signal,
     onProgress: input.onProgress,
   });
 
+  // If the user cancelled right as the XHR upload finished, roll back the storage object.
   if (input.signal?.aborted) {
     await removeStorageObjectQuietly(storagePath);
     throw new UploadCancelledError();
@@ -392,12 +395,12 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
     .from('files')
     .insert({
       id: fileUuid,
-      project_id: validated.projectId,
-      uploaded_by: validated.uploadedByUid,
+      project_id: input.projectId,
+      uploaded_by: input.uploadedByUid,
       name: input.file.name.slice(0, 260),
       storage_path: storagePath,
       size_bytes: input.file.size,
-      mime_type: validated.mimeType,
+      mime_type: input.mimeType,
     })
     .select(FILE_SELECT)
     .single();
@@ -417,16 +420,15 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
   const row = data as unknown as FileJoinedRow;
   const signedMap = await createSignedUrlMap([storagePath]);
   return mapFileRow(row, signedMap.get(storagePath) ?? '', {
-    viewerId: validated.uploadedByUid,
+    viewerId: input.uploadedByUid,
     viewerName: input.uploadedByName,
     viewerRole: input.uploadedByRole,
   });
 }
 
 export async function update(id: string, input: UpdateFileInput): Promise<ProjectFileRecord> {
-  const validated = parseApiInput(updateFileMetadataApiSchema, input);
   const payload: Record<string, string> = {};
-  if (validated.name !== undefined) payload.name = validated.name.slice(0, 260);
+  if (input.name !== undefined) payload.name = input.name.trim().slice(0, 260);
 
   const {data, error} = await supabase
     .from('files')
@@ -464,6 +466,7 @@ export async function remove(id: string): Promise<void> {
 
   const storagePath = String(existing.storage_path ?? '').trim();
 
+  // Delete the storage object first so a storage RLS denial never leaves an orphaned blob
   if (storagePath) {
     const {error: storageError} = await supabase.storage
       .from(STORAGE_BUCKET)

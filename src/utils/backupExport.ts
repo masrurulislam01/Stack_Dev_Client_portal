@@ -1,13 +1,13 @@
-import {list as listClients} from '@/services/clients';
-import {list as listInvoices} from '@/services/invoices';
-import {list as listPaymentSubmissions} from '@/services/payments';
-import {list as listProjects} from '@/services/projects';
+import {list as listClients} from '../services/clients';
+import {list as listInvoices} from '../services/invoices';
+import {list as listPaymentSubmissions} from '../services/payments';
+import {list as listProjects} from '../services/projects';
 import type {
   ClientRecord,
   InvoiceRecord,
   PaymentSubmissionRecord,
   ProjectRecord,
-} from '@/types/portal';
+} from '../types/portal';
 
 export interface BackupSnapshot {
   exportedAt: string;

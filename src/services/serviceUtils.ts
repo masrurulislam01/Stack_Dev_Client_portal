@@ -1,21 +1,3 @@
-import type {z} from 'zod';
-
-export function getPgErrorCode(error: unknown): string {
-  if (typeof error === 'object' && error !== null && 'code' in error) {
-    return String((error as {code?: unknown}).code ?? '');
-  }
-  return '';
-}
-
-export function parseApiInput<T>(schema: z.ZodType<T>, input: unknown): T {
-  const result = schema.safeParse(input);
-  if (!result.success) {
-    const firstIssue = result.error.issues[0];
-    throw new Error(firstIssue?.message || 'Invalid input parameters.');
-  }
-  return result.data;
-}
-
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (!error) return fallback;
 
@@ -26,7 +8,11 @@ export function getErrorMessage(error: unknown, fallback: string): string {
         ? error.message
         : String(error);
 
-  const code = getPgErrorCode(error);
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as {code?: unknown}).code ?? '')
+      : '';
+
   const lower = raw.toLowerCase();
 
   if (code === '42501' || lower.includes('row-level security') || lower.includes('permission denied')) {

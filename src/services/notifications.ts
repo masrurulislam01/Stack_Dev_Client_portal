@@ -1,13 +1,7 @@
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {NotificationRow} from '@/types/database';
-import {
-  createNotificationRowApiSchema,
-  dispatchNotificationApiSchema,
-  updateNotificationApiSchema,
-  type NotificationRecord,
-  type NotificationType,
-} from '@/types/portal';
+import {supabase} from '../lib/supabase';
+import type {NotificationRow} from '../types/database';
+import type {NotificationRecord, NotificationType} from '../types/portal';
+import {getErrorMessage} from './serviceUtils';
 
 export interface CreateNotificationRowInput {
   userId: string;
@@ -86,21 +80,18 @@ export async function getById(id: string): Promise<NotificationRecord | null> {
 }
 
 export async function create(input: CreateNotificationRowInput): Promise<NotificationRecord> {
-  const validated = parseApiInput(createNotificationRowApiSchema, {
-    ...input,
-    title: input.title.trim().slice(0, 160) || 'Notification',
-    body: input.body.trim().slice(0, 500) || 'New activity in your project.',
-    link: input.link.startsWith('/') ? input.link.slice(0, 300) : `/${input.link}`.slice(0, 300),
-  });
+  const normalizedLink = input.link.startsWith('/')
+    ? input.link.slice(0, 300)
+    : `/${input.link}`.slice(0, 300);
 
   const {data, error} = await supabase
     .from('notifications')
     .insert({
-      user_id: validated.userId,
-      type: validated.type,
-      title: validated.title,
-      body: validated.body,
-      link: validated.link,
+      user_id: input.userId,
+      type: input.type,
+      title: input.title.trim().slice(0, 160) || 'Notification',
+      body: input.body.trim().slice(0, 500) || 'New activity in your project.',
+      link: normalizedLink,
       is_read: false,
     })
     .select('id, user_id, type, title, body, link, is_read, created_at')
@@ -113,22 +104,24 @@ export async function create(input: CreateNotificationRowInput): Promise<Notific
   return mapNotificationRow(data as NotificationRow);
 }
 
+/**
+ * Dispatches notifications to matching profile user_ids for a role/client.
+ * When invoked from a non-admin session, Supabase RLS restricts cross-user inserts,
+ * so this helper handles restricted recipients gracefully without breaking the primary action.
+ */
 export async function dispatchNotification(
   input: CreateDispatchNotificationInput,
 ): Promise<void> {
-  const validated = parseApiInput(dispatchNotificationApiSchema, {
-    ...input,
-    title: input.title.trim().slice(0, 160) || 'Notification',
-    body: input.body.trim().slice(0, 500) || 'New activity in your project.',
-    link: input.link.startsWith('/') ? input.link.slice(0, 300) : `/${input.link}`.slice(0, 300),
-  });
+  const normalizedLink = input.link.startsWith('/')
+    ? input.link.slice(0, 300)
+    : `/${input.link}`.slice(0, 300);
 
   try {
     let profileQuery = supabase.from('profiles').select('id');
-    if (validated.recipientRole === 'admin') {
+    if (input.recipientRole === 'admin') {
       profileQuery = profileQuery.eq('role', 'admin');
-    } else if (validated.clientId) {
-      profileQuery = profileQuery.eq('client_id', validated.clientId);
+    } else if (input.clientId) {
+      profileQuery = profileQuery.eq('client_id', input.clientId);
     } else {
       return;
     }
@@ -140,16 +133,16 @@ export async function dispatchNotification(
 
     const rows = recipients.map((r) => ({
       user_id: String(r.id),
-      type: validated.type,
-      title: validated.title,
-      body: validated.body,
-      link: validated.link,
+      type: input.type,
+      title: input.title.trim().slice(0, 160) || 'Notification',
+      body: input.body.trim().slice(0, 500) || 'New activity in your project.',
+      link: normalizedLink,
       is_read: false,
     }));
 
     await supabase.from('notifications').insert(rows);
   } catch {
-    // Non-blocking: RLS restricts cross-user inserts outside admin sessions
+    // Non-blocking: RLS prevents clients from creating cross-user notifications directly
   }
 }
 
@@ -157,11 +150,9 @@ export async function update(
   id: string,
   input: {isRead: boolean},
 ): Promise<NotificationRecord> {
-  const validated = parseApiInput(updateNotificationApiSchema, input);
-
   const {data, error} = await supabase
     .from('notifications')
-    .update({is_read: validated.isRead})
+    .update({is_read: input.isRead})
     .eq('id', id)
     .select('id, user_id, type, title, body, link, is_read, created_at')
     .single();
@@ -197,6 +188,9 @@ export async function remove(id: string): Promise<void> {
   }
 }
 
+/**
+ * Subscribe to Supabase Realtime updates ONLY on `notifications` for the active user.
+ */
 export function subscribeToNotifications(
   userId: string,
   onChange: () => void,

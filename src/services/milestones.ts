@@ -1,14 +1,7 @@
-import {MILESTONE_STATUSES} from '@/lib/constants';
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {DbMilestoneStatus, MilestoneRow} from '@/types/database';
-import {
-  clientMilestoneReviewApiSchema,
-  createMilestoneApiSchema,
-  updateMilestoneApiSchema,
-  type MilestoneRecord,
-  type MilestoneStatus,
-} from '@/types/portal';
+import {supabase} from '../lib/supabase';
+import type {DbMilestoneStatus, MilestoneRow} from '../types/database';
+import type {MilestoneRecord, MilestoneStatus} from '../types/portal';
+import {getErrorMessage} from './serviceUtils';
 
 interface MilestoneJoinedRow extends MilestoneRow {
   projects?: {client_id?: string | null} | null;
@@ -37,8 +30,15 @@ export interface UpdateMilestoneInput {
   resetReviewMeta?: boolean;
 }
 
+const VALID_STATUSES: MilestoneStatus[] = [
+  'Pending',
+  'In Review',
+  'Approved',
+  'Changes Requested',
+];
+
 function mapMilestoneRow(row: MilestoneJoinedRow): MilestoneRecord {
-  const status: MilestoneStatus = MILESTONE_STATUSES.includes(row.status)
+  const status: MilestoneStatus = VALID_STATUSES.includes(row.status)
     ? row.status
     : 'Pending';
 
@@ -101,16 +101,14 @@ export async function getById(id: string): Promise<MilestoneRecord | null> {
 }
 
 export async function create(input: CreateMilestoneInput): Promise<MilestoneRecord> {
-  const validated = parseApiInput(createMilestoneApiSchema, input);
-
   const {data, error} = await supabase
     .from('milestones')
     .insert({
-      project_id: validated.projectId,
-      title: validated.title,
-      description: validated.description ?? '',
-      due_date: validated.dueDate || null,
-      status: (validated.status ?? 'Pending') as DbMilestoneStatus,
+      project_id: input.projectId,
+      title: input.title.trim(),
+      description: (input.description ?? '').trim(),
+      due_date: input.dueDate || null,
+      status: (input.status ?? 'Pending') as DbMilestoneStatus,
     })
     .select(MILESTONE_SELECT)
     .single();
@@ -126,15 +124,14 @@ export async function update(
   id: string,
   input: UpdateMilestoneInput,
 ): Promise<MilestoneRecord> {
-  const validated = parseApiInput(updateMilestoneApiSchema, input);
   const payload: Record<string, unknown> = {};
-  if (validated.title !== undefined) payload.title = validated.title;
-  if (validated.description !== undefined) payload.description = validated.description;
-  if (validated.dueDate !== undefined) payload.due_date = validated.dueDate || null;
-  if (validated.status !== undefined) payload.status = validated.status;
-  if (validated.reviewComment !== undefined) payload.feedback = validated.reviewComment;
+  if (input.title !== undefined) payload.title = input.title.trim();
+  if (input.description !== undefined) payload.description = input.description.trim();
+  if (input.dueDate !== undefined) payload.due_date = input.dueDate || null;
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.reviewComment !== undefined) payload.feedback = input.reviewComment.trim();
 
-  if (validated.resetReviewMeta) {
+  if (input.resetReviewMeta) {
     payload.feedback = '';
     payload.reviewed_by = null;
     payload.reviewed_at = null;
@@ -159,19 +156,18 @@ export async function submitClientReview(
   decision: 'Approved' | 'Changes Requested',
   feedback = '',
 ): Promise<MilestoneRecord> {
-  const validated = parseApiInput(clientMilestoneReviewApiSchema, {
-    id,
-    decision,
-    feedback: decision === 'Changes Requested' ? feedback : '',
-  });
+  const cleanFeedback = decision === 'Changes Requested' ? feedback.trim() : '';
+  if (decision === 'Changes Requested' && !cleanFeedback) {
+    throw new Error('Please describe the changes you would like before submitting.');
+  }
 
   const {data, error} = await supabase
     .from('milestones')
     .update({
-      status: validated.decision,
-      feedback: validated.feedback,
+      status: decision,
+      feedback: cleanFeedback,
     })
-    .eq('id', validated.id)
+    .eq('id', id)
     .select(MILESTONE_SELECT)
     .single();
 

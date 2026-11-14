@@ -1,14 +1,7 @@
-import {PROJECT_STATUSES} from '@/lib/constants';
-import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseApiInput} from '@/services/serviceUtils';
-import type {DbProjectPackage, DbProjectStatus, ProjectRow} from '@/types/database';
-import {
-  createProjectApiSchema,
-  updateProjectApiSchema,
-  type ProjectPackage,
-  type ProjectRecord,
-  type ProjectStatus,
-} from '@/types/portal';
+import {supabase} from '../lib/supabase';
+import type {DbProjectPackage, DbProjectStatus, ProjectRow} from '../types/database';
+import type {ProjectPackage, ProjectRecord, ProjectStatus} from '../types/portal';
+import {getErrorMessage} from './serviceUtils';
 
 interface ProjectJoinedRow extends ProjectRow {
   clients?: {company_name?: string | null} | null;
@@ -33,10 +26,18 @@ export interface CreateProjectInput {
 
 export type UpdateProjectInput = Partial<CreateProjectInput>;
 
+const VALID_STATUSES: ProjectStatus[] = [
+  'Planning',
+  'Design',
+  'Development',
+  'Review',
+  'Delivered',
+];
+
 function mapProjectRow(row: ProjectJoinedRow): ProjectRecord {
   const pkg: ProjectPackage =
     row.package === 'premium' || row.package === 'custom' ? row.package : 'basic';
-  const status: ProjectStatus = PROJECT_STATUSES.includes(row.status)
+  const status: ProjectStatus = VALID_STATUSES.includes(row.status)
     ? row.status
     : 'Planning';
 
@@ -94,21 +95,19 @@ export async function getById(id: string): Promise<ProjectRecord | null> {
 }
 
 export async function create(input: CreateProjectInput): Promise<ProjectRecord> {
-  const validated = parseApiInput(createProjectApiSchema, input);
-
   const {data, error} = await supabase
     .from('projects')
     .insert({
-      title: validated.title,
-      client_id: validated.clientId,
-      package: validated.package as DbProjectPackage,
-      status: validated.status as DbProjectStatus,
-      progress: Math.min(100, Math.max(0, Math.round(validated.progress))),
-      start_date: validated.startDate || null,
-      due_date: validated.dueDate || null,
-      revisions_allowed: Math.max(0, Math.round(validated.revisionsAllowed)),
-      revisions_used: Math.max(0, Math.round(validated.revisionsUsed)),
-      description: validated.description,
+      title: input.title.trim(),
+      client_id: input.clientId,
+      package: input.package as DbProjectPackage,
+      status: input.status as DbProjectStatus,
+      progress: Math.min(100, Math.max(0, Math.round(input.progress))),
+      start_date: input.startDate || null,
+      due_date: input.dueDate || null,
+      revisions_allowed: Math.max(0, Math.round(input.revisionsAllowed)),
+      revisions_used: Math.max(0, Math.round(input.revisionsUsed)),
+      description: input.description.trim(),
     })
     .select(PROJECT_SELECT)
     .single();
@@ -124,25 +123,24 @@ export async function update(
   id: string,
   input: UpdateProjectInput,
 ): Promise<ProjectRecord> {
-  const validated = parseApiInput(updateProjectApiSchema, input);
   const payload: Record<string, unknown> = {};
-  if (validated.title !== undefined) payload.title = validated.title;
-  if (validated.clientId !== undefined) payload.client_id = validated.clientId;
-  if (validated.package !== undefined) payload.package = validated.package;
-  if (validated.status !== undefined) payload.status = validated.status;
-  if (validated.progress !== undefined) {
-    payload.progress = Math.min(100, Math.max(0, Math.round(validated.progress)));
+  if (input.title !== undefined) payload.title = input.title.trim();
+  if (input.clientId !== undefined) payload.client_id = input.clientId;
+  if (input.package !== undefined) payload.package = input.package;
+  if (input.status !== undefined) payload.status = input.status;
+  if (input.progress !== undefined) {
+    payload.progress = Math.min(100, Math.max(0, Math.round(input.progress)));
   }
-  if (validated.startDate !== undefined) payload.start_date = validated.startDate || null;
-  if (validated.dueDate !== undefined) payload.due_date = validated.dueDate || null;
-  if (validated.revisionsAllowed !== undefined) {
-    payload.revisions_allowed = Math.max(0, Math.round(validated.revisionsAllowed));
+  if (input.startDate !== undefined) payload.start_date = input.startDate || null;
+  if (input.dueDate !== undefined) payload.due_date = input.dueDate || null;
+  if (input.revisionsAllowed !== undefined) {
+    payload.revisions_allowed = Math.max(0, Math.round(input.revisionsAllowed));
   }
-  if (validated.revisionsUsed !== undefined) {
-    payload.revisions_used = Math.max(0, Math.round(validated.revisionsUsed));
+  if (input.revisionsUsed !== undefined) {
+    payload.revisions_used = Math.max(0, Math.round(input.revisionsUsed));
   }
-  if (validated.description !== undefined) {
-    payload.description = validated.description;
+  if (input.description !== undefined) {
+    payload.description = input.description.trim();
   }
 
   const {data, error} = await supabase
