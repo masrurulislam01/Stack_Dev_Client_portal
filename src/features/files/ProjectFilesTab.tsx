@@ -1,4 +1,15 @@
-import {AlertCircle, FolderOpen, X} from 'lucide-react';
+import {AlertCircle, FolderOpen, UploadCloud, X} from 'lucide-react';
+import {useRef} from 'react';
+import {
+  Button,
+  Card,
+  ConfirmDialog,
+  EmptyState,
+  ErrorAlert,
+  TableContainer,
+  TableHead,
+  TableHeaderCell,
+} from '@/components/ui';
 import {FileDropzone} from '@/features/files/FileDropzone';
 import {FilePreviewModal} from '@/features/files/FilePreviewModal';
 import {ProjectFilesMobileList} from '@/features/files/ProjectFilesMobileList';
@@ -6,6 +17,7 @@ import {ProjectFilesTable} from '@/features/files/ProjectFilesTable';
 import {UploadQueue} from '@/features/files/UploadQueue';
 import {useProjectFiles} from '@/features/files/useProjectFiles';
 import type {PortalUser} from '@/hooks/useAuth';
+import {getErrorMessage} from '@/services/serviceUtils';
 import type {ProjectRecord} from '@/types/portal';
 
 interface ProjectFilesTabProps {
@@ -15,18 +27,23 @@ interface ProjectFilesTabProps {
 
 export function ProjectFilesTab({project, user}: ProjectFilesTabProps) {
   const state = useProjectFiles(project, user);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const displayedError =
+    state.actionError ||
+    (state.loadError ? getErrorMessage(state.loadError, 'Unable to load shared files.') : null);
 
   return (
     <div className="space-y-6">
-      <FileDropzone onSelectFiles={state.handleSelectedFiles} />
+      <FileDropzone inputRef={fileInputRef} onSelectFiles={state.handleSelectedFiles} />
 
       {state.validationErrors.length > 0 && (
         <div
           role="alert"
-          className="rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3.5 flex items-start justify-between gap-3 text-xs sm:text-sm text-red-700 dark:text-red-300"
+          className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3.5 flex items-start justify-between gap-3 text-xs sm:text-sm text-danger-text"
         >
           <div className="flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" aria-hidden="true" />
             <ul className="space-y-1">
               {state.validationErrors.map((err, idx) => (
                 <li key={idx}>{err}</li>
@@ -37,38 +54,20 @@ export function ProjectFilesTab({project, user}: ProjectFilesTabProps) {
             type="button"
             onClick={() => state.setValidationErrors([])}
             aria-label="Dismiss file validation errors"
-            className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 shrink-0"
+            className="p-1 rounded-lg hover:bg-danger/15 shrink-0 cursor-pointer"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
         </div>
       )}
 
-      {(state.actionError || state.loadError) && (
-        <div
-          role="alert"
-          className="rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3.5 flex items-start justify-between gap-3 text-xs sm:text-sm text-red-700 dark:text-red-300"
-        >
-          <div className="flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-            <span>
-              {state.actionError ||
-                (state.loadError instanceof Error
-                  ? state.loadError.message
-                  : 'Unable to load shared files.')}
-            </span>
-          </div>
-          {state.actionError && (
-            <button
-              type="button"
-              onClick={() => state.setActionError(null)}
-              aria-label="Dismiss error"
-              className="p-1 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40 shrink-0"
-            >
-              <X className="w-4 h-4" aria-hidden="true" />
-            </button>
-          )}
-        </div>
+      {displayedError && (
+        <ErrorAlert
+          message={displayedError}
+          onRetry={state.loadError ? () => void state.refetchFiles() : undefined}
+          retrying={state.isRetryingFiles}
+          onDismiss={state.actionError ? () => state.setActionError(null) : undefined}
+        />
       )}
 
       <UploadQueue
@@ -78,70 +77,147 @@ export function ProjectFilesTab({project, user}: ProjectFilesTabProps) {
         onDismiss={state.handleDismissUpload}
       />
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
+      <Card className="overflow-hidden">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-              Shared Files
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Private deliverables, builds, designs, and assets for {project.title}.
+            <h3 className="font-heading text-base font-semibold text-foreground">Shared Files</h3>
+            <p className="text-xs text-muted mt-0.5">
+              Private deliverables, builds, designs, and assets for {project.title || 'this project'}.
             </p>
           </div>
-          <span className="text-xs font-medium text-slate-500 dark:text-slate-400 tabular-nums whitespace-nowrap">
+          <span className="text-xs font-semibold text-muted num whitespace-nowrap">
             {state.files.length} {state.files.length === 1 ? 'file' : 'files'}
           </span>
         </div>
 
         {state.loading ? (
-          <div className="p-6 space-y-3 animate-pulse">
-            {[1, 2, 3].map((row) => (
-              <div key={row} className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
-            ))}
-          </div>
+          <>
+            <TableContainer className="hidden md:block border-0 rounded-none shadow-none">
+              <TableHead>
+                <TableHeaderCell className="px-6">File Name</TableHeaderCell>
+                <TableHeaderCell>Type</TableHeaderCell>
+                <TableHeaderCell>Size</TableHeaderCell>
+                <TableHeaderCell>Uploader</TableHeaderCell>
+                <TableHeaderCell>Date</TableHeaderCell>
+                <TableHeaderCell align="right" className="px-6">
+                  Actions
+                </TableHeaderCell>
+              </TableHead>
+              <tbody className="divide-y divide-border">
+                {[1, 2, 3].map((row) => (
+                  <tr key={row} className="h-[56px]">
+                    <td className="py-3.5 px-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl skeleton-shimmer shrink-0" />
+                        <div className="space-y-1.5">
+                          <div className="h-4 w-40 rounded skeleton-shimmer" />
+                          <div className="h-3 w-12 rounded skeleton-shimmer" />
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="h-4 w-24 rounded skeleton-shimmer" />
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="h-4 w-16 rounded skeleton-shimmer" />
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="h-4 w-28 rounded skeleton-shimmer" />
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="h-3.5 w-24 rounded skeleton-shimmer" />
+                    </td>
+                    <td className="py-3.5 px-6 text-right">
+                      <div className="inline-flex items-center gap-1">
+                        <div className="h-8 w-8 rounded-lg skeleton-shimmer" />
+                        <div className="h-8 w-8 rounded-lg skeleton-shimmer" />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </TableContainer>
+            <ul className="md:hidden divide-y divide-border">
+              {[1, 2, 3].map((row) => (
+                <li key={row} className="p-4 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-xl skeleton-shimmer shrink-0" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-4 w-44 rounded skeleton-shimmer" />
+                      <div className="h-3 w-32 rounded skeleton-shimmer" />
+                      <div className="h-3 w-40 rounded skeleton-shimmer" />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-8 w-24 rounded-xl skeleton-shimmer" />
+                    <div className="h-8 w-20 rounded-xl skeleton-shimmer" />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </>
         ) : state.files.length === 0 ? (
-          <div className="p-10 text-center">
-            <FolderOpen
-              className="w-9 h-9 text-slate-300 dark:text-slate-700 mx-auto mb-3"
-              aria-hidden="true"
-            />
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              No files uploaded yet
-            </p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
-              Drag and drop PDFs, documents, spreadsheets, archives, or images above to share them
-              with the project team.
-            </p>
-          </div>
+          <EmptyState
+            className="border-0 rounded-none shadow-none py-10"
+            icon={<FolderOpen className="w-5 h-5" aria-hidden="true" />}
+            title="No files uploaded yet"
+            description="Drag and drop PDFs, documents, spreadsheets, archives, or images above to share them with the project team."
+            action={
+              <Button
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+                icon={<UploadCloud className="w-4 h-4" aria-hidden="true" />}
+              >
+                Upload Files
+              </Button>
+            }
+          />
         ) : (
           <>
             <ProjectFilesTable
               files={state.files}
-              confirmDeleteId={state.confirmDeleteId}
               deletingId={state.deletingId}
               downloadingId={state.downloadingId}
               canDeleteFile={state.canDeleteFile}
               onPreview={state.setPreviewFile}
               onDownload={(f) => void state.handleDownloadFile(f)}
-              onRequestDelete={state.setConfirmDeleteId}
-              onConfirmDelete={(f) => void state.handleDeleteFile(f)}
+              onRequestDelete={state.requestDeleteFile}
             />
             <ProjectFilesMobileList
               files={state.files}
-              confirmDeleteId={state.confirmDeleteId}
               deletingId={state.deletingId}
               downloadingId={state.downloadingId}
               canDeleteFile={state.canDeleteFile}
               onPreview={state.setPreviewFile}
               onDownload={(f) => void state.handleDownloadFile(f)}
-              onRequestDelete={state.setConfirmDeleteId}
-              onConfirmDelete={(f) => void state.handleDeleteFile(f)}
+              onRequestDelete={state.requestDeleteFile}
             />
           </>
         )}
-      </div>
+      </Card>
 
       <FilePreviewModal file={state.previewFile} onClose={() => state.setPreviewFile(null)} />
+
+      <ConfirmDialog
+        open={Boolean(state.fileToDelete)}
+        onClose={state.cancelDeleteFile}
+        onConfirm={state.handleDeleteFile}
+        title="Delete File"
+        titleId="delete-file-title"
+        confirmLabel="Delete File"
+        confirmBusyLabel="Deleting..."
+        loading={Boolean(state.deletingId)}
+        error={state.deleteError}
+        message={
+          <>
+            Permanently remove{' '}
+            <strong className="text-foreground">
+              {state.fileToDelete?.name || 'this file'}
+            </strong>
+            ? This action cannot be undone.
+          </>
+        }
+      />
     </div>
   );
 }

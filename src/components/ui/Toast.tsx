@@ -12,7 +12,7 @@ export function ToastViewport({
     <div
       aria-live="polite"
       aria-label="Notifications"
-      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2.5 w-[calc(100vw-2rem)] sm:w-full max-w-sm pointer-events-none"
+      className="fixed bottom-20 sm:bottom-auto sm:top-5 right-4 sm:right-5 z-[60] flex flex-col gap-2.5 w-[calc(100vw-2rem)] sm:w-full max-w-sm pointer-events-none"
     >
       {toasts.map((item) => {
         const isError = item.variant === 'error';
@@ -21,21 +21,21 @@ export function ToastViewport({
           <div
             key={item.id}
             role={isError ? 'alert' : 'status'}
-            className={`pointer-events-auto rounded-2xl border shadow-lg px-4 py-3.5 flex items-start gap-3 transition-all ${
+            className={`pointer-events-auto rounded-2xl border border-border bg-surface-raised text-foreground shadow-md px-4 py-3.5 flex items-start gap-3 transition-all border-l-4 ${
               isError
-                ? 'bg-white dark:bg-slate-900 border-red-200 dark:border-red-900/70 text-slate-900 dark:text-slate-100'
+                ? 'border-l-danger'
                 : isSuccess
-                  ? 'bg-white dark:bg-slate-900 border-emerald-200 dark:border-emerald-900/70 text-slate-900 dark:text-slate-100'
-                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-900 dark:text-slate-100'
+                  ? 'border-l-success'
+                  : 'border-l-primary-600'
             }`}
           >
             <div
               className={`mt-0.5 shrink-0 ${
                 isError
-                  ? 'text-red-600 dark:text-red-400'
+                  ? 'text-danger-text'
                   : isSuccess
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-indigo-600 dark:text-indigo-400'
+                    ? 'text-success-text'
+                    : 'text-primary-600'
               }`}
             >
               {isError ? (
@@ -48,13 +48,11 @@ export function ToastViewport({
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-xs sm:text-sm font-semibold leading-snug break-words">
+              <p className="text-xs sm:text-sm font-semibold text-foreground leading-snug break-words">
                 {item.title}
               </p>
               {item.description && (
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400 break-words">
-                  {item.description}
-                </p>
+                <p className="mt-1 text-xs text-muted break-words">{item.description}</p>
               )}
             </div>
 
@@ -62,7 +60,7 @@ export function ToastViewport({
               type="button"
               onClick={() => onDismiss(item.id)}
               aria-label="Dismiss notification"
-              className="inline-flex items-center justify-center min-w-[32px] min-h-[32px] -mr-1.5 -mt-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
+              className="inline-flex items-center justify-center min-w-[32px] min-h-[32px] -mr-1.5 -mt-1 rounded-lg text-muted hover:text-foreground hover:bg-surface-muted transition-colors shrink-0 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>

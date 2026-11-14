@@ -1,7 +1,10 @@
-import {Clock, Image as ImageIcon, Trash2, User, X} from 'lucide-react';
-import {useState} from 'react';
+import {Clock, Image as ImageIcon, Trash2, X} from 'lucide-react';
+import {useState, type ReactNode} from 'react';
+import {Card, ConfirmDialog, EmptyState, ErrorAlert} from '@/components/ui';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {getErrorMessage} from '@/services/serviceUtils';
 import type {ProjectUpdateRecord} from '@/types/portal';
+import {getAvatarToneClass, getInitials} from '@/utils/avatar';
 import {formatDateTime} from '@/utils/format';
 
 function isSafeTimelineImageSrc(src: string): boolean {
@@ -19,132 +22,159 @@ function isSafeTimelineImageSrc(src: string): boolean {
 interface TimelineFeedProps {
   updates: ProjectUpdateRecord[];
   loading: boolean;
+  error?: string | null;
+  onRetry?: () => void;
+  retrying?: boolean;
   onDeleteUpdate?: (updateId: string) => Promise<void>;
   emptyMessage?: string;
+  emptyAction?: ReactNode;
 }
 
 export function TimelineFeed({
   updates,
   loading,
+  error = null,
+  onRetry,
+  retrying = false,
   onDeleteUpdate,
   emptyMessage = 'No timeline updates have been posted for this project yet.',
+  emptyAction,
 }: TimelineFeedProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDeleteUpdate, setPendingDeleteUpdate] = useState<ProjectUpdateRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEscapeKey(Boolean(lightboxImage), () => setLightboxImage(null));
 
-  const handleDelete = async (id: string) => {
-    if (!onDeleteUpdate) return;
-    setDeletingId(id);
+  const handleConfirmDelete = async () => {
+    if (!onDeleteUpdate || !pendingDeleteUpdate) return;
+    setDeleteError(null);
+    setIsDeleting(true);
     try {
-      await onDeleteUpdate(id);
+      await onDeleteUpdate(pendingDeleteUpdate.id);
+      setPendingDeleteUpdate(null);
+    } catch (err) {
+      setDeleteError(getErrorMessage(err, 'Unable to delete update.'));
     } finally {
-      setDeletingId(null);
+      setIsDeleting(false);
     }
   };
 
   if (loading) {
     return (
-      <div className="space-y-4 animate-pulse">
+      <div className="space-y-4">
         {[1, 2, 3].map((item) => (
-          <div
-            key={item}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-6 space-y-3"
-          >
+          <Card key={item} className="p-6 space-y-3">
             <div className="flex items-center justify-between gap-4">
-              <div className="h-4 w-36 rounded bg-slate-200 dark:bg-slate-800" />
-              <div className="h-3 w-28 rounded bg-slate-200 dark:bg-slate-800" />
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-full skeleton-shimmer shrink-0" />
+                <div className="h-4 w-36 rounded skeleton-shimmer" />
+              </div>
+              <div className="h-3 w-28 rounded skeleton-shimmer" />
             </div>
-            <div className="h-4 w-full rounded bg-slate-200 dark:bg-slate-800" />
-            <div className="h-4 w-2/3 rounded bg-slate-200 dark:bg-slate-800" />
-          </div>
+            <div className="h-4 w-full rounded skeleton-shimmer" />
+            <div className="h-4 w-2/3 rounded skeleton-shimmer" />
+          </Card>
         ))}
       </div>
     );
   }
 
+  if (error) {
+    return <ErrorAlert message={error} onRetry={onRetry} retrying={retrying} />;
+  }
+
   if (updates.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center">
-        <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center mx-auto mb-3">
-          <Clock className="w-5 h-5" aria-hidden="true" />
-        </div>
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
-          No updates yet
-        </h3>
-        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400 max-w-md mx-auto">
-          {emptyMessage}
-        </p>
-      </div>
+      <EmptyState
+        icon={<Clock className="w-5 h-5" aria-hidden="true" />}
+        title="No updates yet"
+        description={emptyMessage}
+        action={emptyAction}
+      />
     );
   }
 
   return (
     <>
-      <div className="space-y-4">
-        {updates.map((update) => (
-          <article
-            key={update.id}
-            className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                <span className="inline-flex items-center gap-1.5 font-semibold text-slate-900 dark:text-slate-100">
-                  <User className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-                  <span>{update.authorName || 'Stack Dev'}</span>
-                </span>
-                <span aria-hidden="true">·</span>
-                <time className="tabular-nums">{formatDateTime(update.createdAt)}</time>
+      <div className="relative pl-6 sm:pl-8 space-y-4 before:content-[''] before:absolute before:left-[15px] sm:before:left-[19px] before:top-4 before:bottom-4 before:w-0.5 before:bg-border">
+        {updates.map((update) => {
+          const safeAttachments = Array.isArray(update.attachments)
+            ? update.attachments.filter(isSafeTimelineImageSrc)
+            : [];
+          const authorName = update.authorName || 'Stack Dev';
+
+          return (
+            <div key={update.id} className="relative">
+              <div
+                className={`absolute -left-6 sm:-left-8 top-5 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center text-xs font-bold ring-4 ring-background ${getAvatarToneClass(
+                  authorName,
+                )}`}
+                aria-hidden="true"
+              >
+                {getInitials(authorName)}
               </div>
 
-              {onDeleteUpdate && (
-                <button
-                  type="button"
-                  onClick={() => void handleDelete(update.id)}
-                  disabled={deletingId === update.id}
-                  aria-label="Delete update"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="w-4 h-4" aria-hidden="true" />
-                </button>
-              )}
+              <Card className="p-5 sm:p-6 space-y-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted">
+                    <span className="font-semibold text-foreground text-sm">{authorName}</span>
+                    <span aria-hidden="true">·</span>
+                    <time className="num">{formatDateTime(update.createdAt)}</time>
+                  </div>
+
+                  {onDeleteUpdate && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setDeleteError(null);
+                        setPendingDeleteUpdate(update);
+                      }}
+                      aria-label="Delete update"
+                      className="p-2 rounded-xl text-muted hover:text-danger-text hover:bg-danger-soft transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                    >
+                      <Trash2 className="w-4 h-4" aria-hidden="true" />
+                    </button>
+                  )}
+                </div>
+
+                <p className="text-sm text-body whitespace-pre-wrap leading-relaxed">
+                  {update.message || ''}
+                </p>
+
+                {safeAttachments.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                    {safeAttachments.map((src, idx) => (
+                      <button
+                        key={`${update.id}-att-${idx}`}
+                        type="button"
+                        onClick={() => setLightboxImage(src)}
+                        className="group relative rounded-xl overflow-hidden border border-border bg-surface-muted aspect-4/3 cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+                      >
+                        <img
+                          src={src}
+                          alt={`Project update attachment ${idx + 1}`}
+                          referrerPolicy="no-referrer"
+                          className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
+                        />
+                        <span className="sr-only">View attachment {idx + 1}</span>
+                        <span className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-overlay text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                          <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </Card>
             </div>
-
-            <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {update.message}
-            </p>
-
-            {update.attachments.filter(isSafeTimelineImageSrc).length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-                {update.attachments.filter(isSafeTimelineImageSrc).map((src, idx) => (
-                  <button
-                    key={`${update.id}-att-${idx}`}
-                    type="button"
-                    onClick={() => setLightboxImage(src)}
-                    className="group relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-950 aspect-4/3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
-                  >
-                    <img
-                      src={src}
-                      alt={`Project update attachment ${idx + 1}`}
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-200"
-                    />
-                    <span className="sr-only">View attachment {idx + 1}</span>
-                    <span className="absolute bottom-2 right-2 p-1.5 rounded-lg bg-slate-950/60 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                      <ImageIcon className="w-3.5 h-3.5" aria-hidden="true" />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </article>
-        ))}
+          );
+        })}
       </div>
 
       {lightboxImage && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay backdrop-blur-[6px]"
           role="dialog"
           aria-modal="true"
           aria-label="Image attachment preview"
@@ -158,7 +188,7 @@ export function TimelineFeed({
               type="button"
               onClick={() => setLightboxImage(null)}
               aria-label="Close image preview"
-              className="absolute -top-12 right-0 p-2 rounded-xl bg-slate-900/80 text-white hover:bg-slate-800 transition-colors"
+              className="absolute -top-12 right-0 min-w-[40px] min-h-[40px] inline-flex items-center justify-center rounded-xl bg-surface-raised border border-border text-foreground hover:bg-surface-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
             >
               <X className="w-5 h-5" aria-hidden="true" />
             </button>
@@ -166,11 +196,27 @@ export function TimelineFeed({
               src={lightboxImage}
               alt="Full size update attachment"
               referrerPolicy="no-referrer"
-              className="max-h-[85vh] w-auto max-w-full rounded-2xl border border-slate-800 shadow-2xl object-contain bg-slate-900"
+              className="max-h-[85vh] w-auto max-w-full rounded-2xl border border-border shadow-lg object-contain bg-surface"
             />
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={Boolean(pendingDeleteUpdate)}
+        title="Delete Update"
+        titleId="delete-update-title"
+        message="Are you sure you want to delete this timeline update? Clients will no longer see it."
+        confirmLabel="Delete"
+        confirmBusyLabel="Deleting..."
+        loading={isDeleting}
+        error={deleteError}
+        onClose={() => {
+          setDeleteError(null);
+          setPendingDeleteUpdate(null);
+        }}
+        onConfirm={() => void handleConfirmDelete()}
+      />
     </>
   );
 }

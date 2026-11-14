@@ -21,6 +21,7 @@ export function useAdminProjects() {
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [clientFilter, setClientFilter] = useState('ALL');
   const [actionError, setActionError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<ProjectRecord | null>(null);
   const [deletingProject, setDeletingProject] = useState<ProjectRecord | null>(null);
@@ -28,7 +29,9 @@ export function useAdminProjects() {
   const {
     data: projects = [],
     isLoading: loading,
+    isFetching: fetchingProjects,
     error: projectsError,
+    refetch: refetchProjects,
   } = useQuery({
     queryKey: queryKeys.projects.list(),
     queryFn: () => listProjects(),
@@ -41,7 +44,20 @@ export function useAdminProjects() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeProject(id),
-    onSuccess: async () => {
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.projects.list()});
+      const previousProjects = queryClient.getQueryData<ProjectRecord[]>(queryKeys.projects.list());
+      queryClient.setQueryData<ProjectRecord[]>(queryKeys.projects.list(), (old = []) =>
+        old.filter((project) => project.id !== id),
+      );
+      return {previousProjects};
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousProjects) {
+        queryClient.setQueryData(queryKeys.projects.list(), context.previousProjects);
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({queryKey: queryKeys.projects.prefix});
     },
   });
@@ -57,45 +73,20 @@ export function useAdminProjects() {
   );
 
   const handleSaveProject = async (values: ProjectFormParsed) => {
-    if (!user || user.role !== 'admin') return;
+    if (!user || user.role !== 'admin') {
+      throw new Error('Only administrators can manage projects.');
+    }
     setActionError(null);
     const actorName = user.name || 'Stack Dev';
     const actorUid = user.id;
 
-    try {
-      if (editingProject) {
-        const updateMessage = `Updated to ${values.status} stage (${values.progress}% complete).`;
-        await updateProject(editingProject.id, values);
-        await createUpdate({
-          projectId: editingProject.id,
-          authorId: actorUid,
-          message: updateMessage,
-          attachments: [],
-        });
-        await Promise.all([
-          queryClient.invalidateQueries({queryKey: queryKeys.projects.prefix}),
-          queryClient.invalidateQueries({queryKey: queryKeys.updates.prefix}),
-        ]);
-        await createNotification({
-          recipientRole: 'client',
-          clientId: values.clientId,
-          projectId: editingProject.id,
-          type: 'update',
-          title: `Project update: ${values.title}`,
-          body: updateMessage,
-          link: `/projects/${editingProject.id}?tab=timeline`,
-          actorUid,
-          actorName,
-        });
-        return;
-      }
-
-      const created = await createProject(values);
-      const startMessage = `Project started in ${values.status} stage.`;
+    if (editingProject) {
+      const updateMessage = `Updated to ${values.status} stage (${values.progress}% complete).`;
+      await updateProject(editingProject.id, values);
       await createUpdate({
-        projectId: created.id,
+        projectId: editingProject.id,
         authorId: actorUid,
-        message: startMessage,
+        message: updateMessage,
         attachments: [],
       });
       await Promise.all([
@@ -105,29 +96,51 @@ export function useAdminProjects() {
       await createNotification({
         recipientRole: 'client',
         clientId: values.clientId,
-        projectId: created.id,
+        projectId: editingProject.id,
         type: 'update',
-        title: `New project started: ${values.title}`,
-        body: startMessage,
-        link: `/projects/${created.id}?tab=timeline`,
+        title: `Project update: ${values.title}`,
+        body: updateMessage,
+        link: `/projects/${editingProject.id}?tab=timeline`,
         actorUid,
         actorName,
       });
-    } catch (err) {
-      const fallback = editingProject ? 'Unable to update project.' : 'Unable to create project.';
-      setActionError(getErrorMessage(err, fallback));
-      throw err;
+      return;
     }
+
+    const created = await createProject(values);
+    const startMessage = `Project started in ${values.status} stage.`;
+    await createUpdate({
+      projectId: created.id,
+      authorId: actorUid,
+      message: startMessage,
+      attachments: [],
+    });
+    await Promise.all([
+      queryClient.invalidateQueries({queryKey: queryKeys.projects.prefix}),
+      queryClient.invalidateQueries({queryKey: queryKeys.updates.prefix}),
+    ]);
+    await createNotification({
+      recipientRole: 'client',
+      clientId: values.clientId,
+      projectId: created.id,
+      type: 'update',
+      title: `New project started: ${values.title}`,
+      body: startMessage,
+      link: `/projects/${created.id}?tab=timeline`,
+      actorUid,
+      actorName,
+    });
   };
 
   const handleDeleteProject = async () => {
     if (!deletingProject || !user || user.role !== 'admin') return;
+    setDeleteError(null);
     setActionError(null);
     try {
       await deleteMutation.mutateAsync(deletingProject.id);
       setDeletingProject(null);
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Unable to delete project.'));
+      setDeleteError(getErrorMessage(err, 'Unable to delete project.'));
     }
   };
 
@@ -139,12 +152,17 @@ export function useAdminProjects() {
     clients,
     filteredProjects,
     loading,
+    hasLoadError: Boolean(projectsError),
+    isRetrying: Boolean(projectsError) && fetchingProjects,
+    refetchProjects: () => void refetchProjects(),
     statusFilter,
     setStatusFilter,
     clientFilter,
     setClientFilter,
     actionError,
     setActionError,
+    deleteError,
+    setDeleteError,
     displayedError,
     isModalOpen,
     setIsModalOpen,

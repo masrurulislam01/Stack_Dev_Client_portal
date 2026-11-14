@@ -1,6 +1,7 @@
-import {AlertTriangle, ArrowLeft} from 'lucide-react';
+import {AlertTriangle, ArrowLeft, RefreshCw} from 'lucide-react';
 import {useState} from 'react';
 import {Link, useParams, useSearchParams} from 'react-router-dom';
+import {Button, Card, ErrorAlert} from '@/components/ui';
 import {ProjectFilesTab} from '@/features/files/ProjectFilesTab';
 import {ProjectInvoicesTab} from '@/features/invoices/ProjectInvoicesTab';
 import {ProjectMessagesTab} from '@/features/messages/ProjectMessagesTab';
@@ -37,75 +38,111 @@ export function AdminProjectDetailPage() {
 
   if (detail.loading) {
     return (
-      <div className="space-y-4">
-        <div className="h-8 w-48 rounded-xl bg-slate-200 dark:bg-slate-800 animate-pulse" />
-        <div className="h-64 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 animate-pulse" />
-      </div>
+      <section className="space-y-6">
+        <Card className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="space-y-2.5">
+            <div className="h-3.5 w-28 rounded skeleton-shimmer" />
+            <div className="h-7 w-72 rounded-lg skeleton-shimmer" />
+            <div className="h-4 w-52 rounded skeleton-shimmer" />
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="w-14 h-14 rounded-full skeleton-shimmer" />
+            <div className="h-11 w-32 rounded-xl skeleton-shimmer" />
+          </div>
+        </Card>
+        <div className="h-11 w-full rounded-xl skeleton-shimmer" />
+        <Card className="p-6 space-y-6">
+          <div className="space-y-2">
+            <div className="flex justify-between">
+              <div className="h-4 w-32 rounded skeleton-shimmer" />
+              <div className="h-4 w-10 rounded skeleton-shimmer" />
+            </div>
+            <div className="h-2 w-full rounded-full skeleton-shimmer" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-border">
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div key={item} className="space-y-1.5">
+                <div className="h-3 w-20 rounded skeleton-shimmer" />
+                <div className="h-4 w-32 rounded skeleton-shimmer" />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-6 space-y-4">
+          <div className="h-5 w-28 rounded skeleton-shimmer" />
+          <div className="h-16 rounded-xl skeleton-shimmer" />
+        </Card>
+      </section>
     );
   }
 
   if (!detail.project) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 text-center space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Project not found
+      <Card className="p-10 text-center space-y-4">
+        <h2 className="font-heading text-lg font-semibold text-foreground">
+          {detail.projectError ? 'Unable to load project' : 'Project not found'}
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-muted max-w-md mx-auto">
           {detail.projectError
             ? getErrorMessage(
                 detail.projectError,
-                'This project may have been deleted or does not exist.',
+                'This project could not be loaded right now. Please try again.',
               )
             : 'This project may have been deleted or does not exist.'}
         </p>
-        <Link
-          to="/admin/projects"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors"
-        >
-          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-          <span>Back to Projects</span>
-        </Link>
-      </div>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {detail.projectError && (
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={detail.isRetryingProject}
+              onClick={detail.refetchProject}
+              icon={
+                <RefreshCw
+                  className={`w-4 h-4 ${detail.isRetryingProject ? 'animate-spin' : ''}`}
+                  aria-hidden="true"
+                />
+              }
+            >
+              {detail.isRetryingProject ? 'Retrying...' : 'Retry'}
+            </Button>
+          )}
+          <Link
+            to="/admin/projects"
+            className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-brand text-white text-sm font-semibold hover:brightness-110 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            <span>Back to Projects</span>
+          </Link>
+        </div>
+      </Card>
     );
   }
 
   const {project, user} = detail;
-  const revisionsExceeded = project.revisionsUsed > project.revisionsAllowed;
+  const revisionsUsed = Number(project.revisionsUsed) || 0;
+  const revisionsAllowed = Number(project.revisionsAllowed) || 0;
+  const revisionsExceeded = revisionsUsed > revisionsAllowed;
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 page-enter">
       <AdminProjectHeader project={project} onEdit={() => setIsEditOpen(true)} />
 
       {detail.actionError && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-4"
-        >
-          <span>{detail.actionError}</span>
-          <button
-            type="button"
-            onClick={() => detail.setActionError(null)}
-            className="text-xs font-medium underline shrink-0"
-          >
-            Dismiss
-          </button>
-        </div>
+        <ErrorAlert message={detail.actionError} onDismiss={() => detail.setActionError(null)} />
       )}
 
       {revisionsExceeded && (
         <div
           role="alert"
-          className="rounded-2xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-5 py-4 flex items-start gap-3 text-sm text-red-800 dark:text-red-300"
+          className="rounded-xl border border-danger/30 bg-danger-soft px-5 py-4 flex items-start gap-3 text-sm text-danger-text"
         >
-          <AlertTriangle
-            className="w-5 h-5 shrink-0 mt-0.5 text-red-600 dark:text-red-400"
-            aria-hidden="true"
-          />
+          <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-danger" aria-hidden="true" />
           <div>
             <p className="font-semibold">Revision limit exceeded</p>
-            <p className="mt-0.5 text-xs sm:text-sm text-red-700 dark:text-red-300/90 tabular-nums">
-              {project.revisionsUsed} revisions have been used out of {project.revisionsAllowed}{' '}
-              allowed for this package.
+            <p className="mt-0.5 text-xs sm:text-sm opacity-90 num">
+              {revisionsUsed} revisions have been used out of {revisionsAllowed} allowed for this
+              package.
             </p>
           </div>
         </div>
@@ -123,19 +160,26 @@ export function AdminProjectDetailPage() {
           <AdminMilestonesCard
             milestones={detail.milestones}
             loading={detail.loadingMilestones}
+            error={
+              detail.milestonesError
+                ? getErrorMessage(detail.milestonesError, 'Unable to load milestones.')
+                : null
+            }
+            onRetry={detail.refetchMilestones}
+            retrying={detail.isRetryingMilestones}
             updatingMilestoneId={detail.updatingMilestoneId}
             onOpenAddModal={() => setIsMilestoneModalOpen(true)}
             onStatusChange={(m, next) => void detail.handleMilestoneStatusChange(m, next)}
-            onDelete={(id) => void detail.handleDeleteMilestone(id)}
+            onDelete={detail.handleDeleteMilestone}
           />
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6">
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">
+          <Card className="p-6">
+            <h3 className="font-heading text-base font-semibold text-foreground mb-2">
               Project Description
             </h3>
-            <p className="text-sm text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed">
+            <p className="text-sm text-body whitespace-pre-wrap leading-relaxed">
               {project.description || 'No description provided for this project yet.'}
             </p>
-          </div>
+          </Card>
         </div>
       ) : activeTab === 'timeline' ? (
         <div className="space-y-6">
@@ -143,7 +187,24 @@ export function AdminProjectDetailPage() {
           <TimelineFeed
             updates={detail.updates}
             loading={detail.loadingUpdates}
+            error={
+              detail.updatesError
+                ? getErrorMessage(detail.updatesError, 'Unable to load timeline updates.')
+                : null
+            }
+            onRetry={detail.refetchUpdates}
+            retrying={detail.isRetryingUpdates}
             onDeleteUpdate={detail.handleDeleteUpdate}
+            emptyAction={
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => document.getElementById('timeline-message')?.focus()}
+              >
+                Write first update
+              </Button>
+            }
           />
         </div>
       ) : activeTab === 'files' && user ? (

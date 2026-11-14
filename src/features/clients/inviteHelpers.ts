@@ -13,8 +13,9 @@ export function buildClientInviteInfo(
 ): ClientInviteInfo {
   const origin =
     typeof window !== 'undefined' ? window.location.origin : 'https://your-portal-url';
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanName = name.trim();
+  const cleanEmail = email.replace(/[\x00-\x1f\x7f]/g, '').trim().toLowerCase();
+  const cleanName = name.replace(/[\x00-\x1f\x7f]/g, '').trim();
+  const safeClientId = clientId.replace(/[^a-zA-Z0-9_-]/g, '');
   const escapedName = cleanName.replace(/'/g, "''");
   const escapedEmail = cleanEmail.replace(/'/g, "''");
 
@@ -31,13 +32,13 @@ export function buildClientInviteInfo(
 
   const linkSqlSnippet = [
     'update public.profiles',
-    `set client_id = '${clientId}',`,
+    `set client_id = '${safeClientId}',`,
     `    full_name = '${escapedName}'`,
     `where lower(email) = lower('${escapedEmail}');`,
   ].join('\n');
 
   return {
-    clientId,
+    clientId: safeClientId,
     name: cleanName,
     email: cleanEmail,
     inviteMessage,

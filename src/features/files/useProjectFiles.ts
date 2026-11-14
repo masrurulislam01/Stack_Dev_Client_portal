@@ -14,7 +14,7 @@ import {
 import {getErrorMessage} from '@/services/serviceUtils';
 import type {PortalUser} from '@/hooks/useAuth';
 import type {ProjectFileRecord, ProjectRecord} from '@/types/portal';
-import {triggerFileDownload, validateProjectFile} from '@/utils/fileSharing';
+import {triggerFileDownload, validateProjectFileMagicBytes} from '@/utils/fileSharing';
 
 export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
   const queryClient = useQueryClient();
@@ -24,7 +24,8 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [uploads, setUploads] = useState<ActiveUploadItem[]>([]);
   const [previewFile, setPreviewFile] = useState<ProjectFileRecord | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [fileToDelete, setFileToDelete] = useState<ProjectFileRecord | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
@@ -43,7 +44,9 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
   const {
     data: files = [],
     isLoading: loading,
+    isFetching: isRetryingFiles,
     error: loadError,
+    refetch: refetchFiles,
   } = useQuery({
     queryKey: queryKeys.files.list({projectId: project.id}),
     queryFn: () =>
@@ -65,7 +68,25 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
 
   const deleteMutation = useMutation({
     mutationFn: (fileId: string) => deleteProjectFile(fileId),
-    onSuccess: () => {
+    onMutate: async (fileId) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.files.prefix});
+      const previous = queryClient.getQueriesData<ProjectFileRecord[]>({
+        queryKey: queryKeys.files.prefix,
+      });
+      queryClient.setQueriesData<ProjectFileRecord[]>(
+        {queryKey: queryKeys.files.prefix},
+        (old) => (old ? old.filter((f) => f.id !== fileId) : old),
+      );
+      return {previous};
+    },
+    onError: (_err, _fileId, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: () => {
       void queryClient.invalidateQueries({queryKey: queryKeys.files.prefix});
     },
   });
@@ -156,14 +177,14 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
     }
   };
 
-  const handleSelectedFiles = (fileList: FileList | File[]) => {
+  const handleSelectedFiles = async (fileList: FileList | File[]) => {
     setActionError(null);
     const incoming = Array.from(fileList);
     if (incoming.length === 0) return;
 
     const errors: string[] = [];
     for (const file of incoming) {
-      const validation = validateProjectFile(file);
+      const validation = await validateProjectFileMagicBytes(file);
       if (!validation.valid) {
         errors.push(validation.error);
         console.warn('[ProjectFilesTab] File validation rejected:', file.name, validation.error);
@@ -180,9 +201,9 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
     setDownloadingId(file.id);
     try {
       const freshUrl = await getSignedDownloadUrl(file.storagePath, SIGNED_URL_EXPIRY_SECONDS);
-      await triggerFileDownload(freshUrl, file.name);
+      await triggerFileDownload(freshUrl, file.name || 'file');
     } catch (err) {
-      const message = getErrorMessage(err, `Could not download "${file.name}".`);
+      const message = getErrorMessage(err, `Could not download "${file.name || 'file'}".`);
       console.error('[ProjectFilesTab] Download failed for file:', file.id, file.storagePath, err);
       setActionError(message);
       toast.error('Download failed', message);
@@ -191,22 +212,40 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
     }
   };
 
-  const handleDeleteFile = async (file: ProjectFileRecord) => {
-    if (user.role !== 'admin' && file.uploadedByUid !== user.id) return;
+  const requestDeleteFile = (file: ProjectFileRecord) => {
+    setDeleteError(null);
+    setFileToDelete(file);
+  };
+
+  const cancelDeleteFile = () => {
+    if (deletingId) return;
+    setDeleteError(null);
+    setFileToDelete(null);
+  };
+
+  const handleDeleteFile = async () => {
+    if (!fileToDelete) return;
+    if (user.role !== 'admin' && fileToDelete.uploadedByUid !== user.id) return;
     setActionError(null);
-    setDeletingId(file.id);
+    setDeleteError(null);
+    setDeletingId(fileToDelete.id);
     try {
-      await deleteMutation.mutateAsync(file.id);
-      if (previewFile?.id === file.id) setPreviewFile(null);
-      setConfirmDeleteId(null);
-      toast.success('File deleted', `"${file.name}" was permanently removed.`);
+      await deleteMutation.mutateAsync(fileToDelete.id);
+      if (previewFile?.id === fileToDelete.id) setPreviewFile(null);
+      toast.success('File deleted', `"${fileToDelete.name || 'File'}" was permanently removed.`);
+      setFileToDelete(null);
     } catch (err) {
       const message = getErrorMessage(
         err,
         'Could not delete the selected file. Please try again.',
       );
-      console.error('[ProjectFilesTab] Delete failed for file:', file.id, file.storagePath, err);
-      setActionError(message);
+      console.error(
+        '[ProjectFilesTab] Delete failed for file:',
+        fileToDelete.id,
+        fileToDelete.storagePath,
+        err,
+      );
+      setDeleteError(message);
       toast.error('Delete failed', message);
     } finally {
       setDeletingId(null);
@@ -216,7 +255,9 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
   return {
     files,
     loading,
+    isRetryingFiles,
     loadError,
+    refetchFiles,
     validationErrors,
     setValidationErrors,
     actionError,
@@ -224,8 +265,8 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
     uploads,
     previewFile,
     setPreviewFile,
-    confirmDeleteId,
-    setConfirmDeleteId,
+    fileToDelete,
+    deleteError,
     deletingId,
     downloadingId,
     canDeleteFile: (file: ProjectFileRecord) =>
@@ -240,6 +281,8 @@ export function useProjectFiles(project: ProjectRecord, user: PortalUser) {
     handleDismissUpload: (id: string) =>
       setUploads((prev) => prev.filter((item) => item.id !== id)),
     handleDownloadFile,
+    requestDeleteFile,
+    cancelDeleteFile,
     handleDeleteFile,
   };
 }

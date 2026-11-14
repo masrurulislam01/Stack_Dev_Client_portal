@@ -1,7 +1,9 @@
 import {zodResolver} from '@hookform/resolvers/zod';
-import {useEffect} from 'react';
+import {AlertCircle} from 'lucide-react';
+import {useEffect, useState} from 'react';
 import {useForm} from 'react-hook-form';
-import {Modal} from '@/components/ui';
+import {Button, Input, Modal, Select, Textarea} from '@/components/ui';
+import {getErrorMessage} from '@/services/serviceUtils';
 import {
   MILESTONE_STATUSES,
   milestoneFormSchema,
@@ -24,6 +26,7 @@ export function MilestoneFormModal({
   onClose,
   onAddMilestone,
 }: MilestoneFormModalProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -41,6 +44,7 @@ export function MilestoneFormModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setSubmitError(null);
     reset({
       title: '',
       description: '',
@@ -50,13 +54,18 @@ export function MilestoneFormModal({
   }, [isOpen, reset]);
 
   const handleValidSubmit = async (values: MilestoneFormParsed) => {
-    await onAddMilestone(values);
-    reset({
-      title: '',
-      description: '',
-      dueDate: getDefaultDueDate(),
-      status: 'Pending',
-    });
+    setSubmitError(null);
+    try {
+      await onAddMilestone(values);
+      reset({
+        title: '',
+        description: '',
+        dueDate: getDefaultDueDate(),
+        status: 'Pending',
+      });
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, 'Unable to add milestone.'));
+    }
   };
 
   return (
@@ -68,104 +77,62 @@ export function MilestoneFormModal({
       maxWidthClass="max-w-lg"
       disableClose={isSubmitting}
     >
-      <form onSubmit={handleSubmit(handleValidSubmit)} className="p-6 space-y-4" noValidate>
-        <div>
-          <label
-            htmlFor="ms-title"
-            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+      <form onSubmit={handleSubmit(handleValidSubmit)} className="p-6 space-y-5" noValidate>
+        {submitError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger-text flex items-start gap-2.5"
           >
-            Milestone Title
-          </label>
-          <input
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" aria-hidden="true" />
+            <span>{submitError}</span>
+          </div>
+        )}
+
+        <fieldset disabled={isSubmitting} className="space-y-4 disabled:opacity-75">
+          <Input
             id="ms-title"
             type="text"
+            label="Milestone Title"
+            error={errors.title?.message}
             {...register('title')}
             placeholder="e.g. UI/UX Figma Wireframes"
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
           />
-          {errors.title && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.title.message}</p>
-          )}
-        </div>
 
-        <div>
-          <label
-            htmlFor="ms-desc"
-            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-          >
-            Description
-          </label>
-          <textarea
+          <Textarea
             id="ms-desc"
             rows={3}
+            label="Description"
+            error={errors.description?.message}
             {...register('description')}
             placeholder="Deliverables included in this checkpoint..."
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 resize-y"
           />
-          {errors.description && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-              {errors.description.message}
-            </p>
-          )}
-        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="ms-due"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Due Date
-            </label>
-            <input
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
               id="ms-due"
               type="date"
+              label="Due Date"
+              error={errors.dueDate?.message}
               {...register('dueDate')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
             />
-            {errors.dueDate && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.dueDate.message}
-              </p>
-            )}
-          </div>
 
-          <div>
-            <label
-              htmlFor="ms-status"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Initial Status
-            </label>
-            <select
-              id="ms-status"
-              {...register('status')}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
-            >
+            <Select id="ms-status" label="Initial Status" {...register('status')}>
               {MILESTONE_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {status}
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
-        </div>
+        </fieldset>
 
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
+        <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
+          <Button type="button" variant="secondary" disabled={isSubmitting} onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors"
-          >
+          </Button>
+          <Button type="submit" variant="primary" loading={isSubmitting}>
             {isSubmitting ? 'Adding...' : 'Add Milestone'}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

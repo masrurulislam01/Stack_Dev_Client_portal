@@ -1,8 +1,41 @@
 import {z} from 'zod';
 import {
+  MAX_DATA_URL_LENGTH,
   MAX_FILE_SIZE_BYTES,
   PAYMENT_SUBMISSION_METHODS,
 } from '@/config/constants';
+import {hasUnsafeFileName} from '@/utils/fileSharing';
+
+const SAFE_DATA_IMAGE_REGEX = /^data:image\/(jpeg|jpg|png|webp);base64,[A-Za-z0-9+/=]+$/;
+
+export function isSafeAttachmentUrl(src: string): boolean {
+  if (SAFE_DATA_IMAGE_REGEX.test(src) && src.length <= MAX_DATA_URL_LENGTH) {
+    return true;
+  }
+  if (src.length > 2048) return false;
+  try {
+    const parsed = new URL(src);
+    return parsed.protocol === 'https:' && !parsed.username && !parsed.password;
+  } catch {
+    return false;
+  }
+}
+
+export function isSafeInternalLink(link: string): boolean {
+  return /^\/(?![/\\])[^\x00-\x1f\x7f]*$/.test(link) && link.length <= 300;
+}
+
+const safeAttachmentSchema = z
+  .string()
+  .trim()
+  .refine(isSafeAttachmentUrl, 'Attachment must be a valid HTTPS URL or compressed raster image.');
+
+const safeInternalLinkSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(300)
+  .refine(isSafeInternalLink, 'Notification link must be a valid internal portal path.');
 
 const projectPackageEnum = z.enum(['basic', 'premium', 'custom']);
 const projectStatusEnum = z.enum([
@@ -68,7 +101,7 @@ export const changePasswordFormSchema = z
     currentPassword: z.string().min(1, 'Current password is required'),
     newPassword: z
       .string()
-      .min(6, 'New password must be at least 6 characters')
+      .min(8, 'New password must be at least 8 characters')
       .max(128, 'Password is too long'),
     confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
@@ -88,7 +121,7 @@ export const setNewPasswordFormSchema = z
   .object({
     newPassword: z
       .string()
-      .min(6, 'Password must be at least 6 characters')
+      .min(8, 'Password must be at least 8 characters')
       .max(128, 'Password is too long'),
     confirmPassword: z.string().min(1, 'Please confirm your new password'),
   })
@@ -324,7 +357,7 @@ export const resetPasswordInputSchema = z.object({
 export const updateRecoveryPasswordInputSchema = z.object({
   newPassword: z
     .string()
-    .min(6, 'Password must be at least 6 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password is too long'),
 });
 
@@ -342,7 +375,7 @@ export const changePasswordInputSchema = z.object({
   currentPassword: z.string().min(1, 'Current password is required'),
   newPassword: z
     .string()
-    .min(6, 'New password must be at least 6 characters')
+    .min(8, 'New password must be at least 8 characters')
     .max(128, 'Password is too long'),
 });
 
@@ -412,12 +445,12 @@ export const createUpdateInputSchema = z.object({
   projectId: z.string().trim().min(1),
   authorId: z.string().trim(),
   message: z.string().trim().min(1, 'Please write an update message').max(2000),
-  attachments: z.array(z.string()).max(4).optional(),
+  attachments: z.array(safeAttachmentSchema).max(4).optional(),
 });
 
 export const updateUpdateInputSchema = z.object({
   message: z.string().trim().min(1, 'Please write an update message').max(2000),
-  attachments: z.array(z.string()).max(4).optional(),
+  attachments: z.array(safeAttachmentSchema).max(4).optional(),
 });
 
 export const fileUploadMetadataSchema = z.object({
@@ -426,7 +459,12 @@ export const fileUploadMetadataSchema = z.object({
   uploadedByUid: z.string().trim().min(1, 'Missing user identifier for upload.'),
   uploadedByName: z.string().trim().optional(),
   uploadedByRole: userRoleEnum.optional(),
-  fileName: z.string().trim().min(1, 'File name is required').max(260),
+  fileName: z
+    .string()
+    .trim()
+    .min(1, 'File name is required')
+    .max(260)
+    .refine((name) => !hasUnsafeFileName(name), 'File name contains invalid characters.'),
   fileSize: z
     .number()
     .positive('File is empty and cannot be uploaded.')
@@ -435,7 +473,13 @@ export const fileUploadMetadataSchema = z.object({
 });
 
 export const updateFileInputSchema = z.object({
-  name: z.string().trim().min(1).max(260).optional(),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(260)
+    .refine((name) => !hasUnsafeFileName(name), 'File name contains invalid characters.')
+    .optional(),
 });
 
 export const createMessageInputSchema = z
@@ -524,7 +568,7 @@ export const createNotificationRowInputSchema = z.object({
   type: notificationTypeEnum,
   title: z.string().trim().min(1).max(160),
   body: z.string().trim().min(1).max(500),
-  link: z.string().trim().min(1).max(300),
+  link: safeInternalLinkSchema,
 });
 
 export const createDispatchNotificationInputSchema = z.object({
@@ -533,7 +577,7 @@ export const createDispatchNotificationInputSchema = z.object({
   type: notificationTypeEnum,
   title: z.string().trim().min(1).max(160),
   body: z.string().trim().min(1).max(500),
-  link: z.string().trim().min(1).max(300),
+  link: safeInternalLinkSchema,
 });
 
 export const updateNotificationInputSchema = z.object({

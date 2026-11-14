@@ -13,10 +13,10 @@ export function SettingsPage() {
   return (
     <section className="max-w-3xl space-y-6">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+        <h2 className="font-heading text-2xl sm:text-[30px] sm:leading-[38px] font-bold tracking-tight text-foreground">
           {t.settings.title}
         </h2>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t.settings.subtitle}</p>
+        <p className="mt-1 text-sm text-muted leading-relaxed">{t.settings.subtitle}</p>
       </div>
 
       <ProfileSettingsCard />

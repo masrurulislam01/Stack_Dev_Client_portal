@@ -1,5 +1,6 @@
 import {AlertCircle, Paperclip, Send, X} from 'lucide-react';
 import type {ChangeEvent, FormEvent, KeyboardEvent, RefObject} from 'react';
+import {Button} from '@/components/ui';
 import type {PendingAttachment} from '@/features/messages/messageHelpers';
 import {FILE_INPUT_ACCEPT, formatFileSize} from '@/utils/fileSharing';
 
@@ -39,15 +40,15 @@ export function MessageComposer({
   return (
     <form
       onSubmit={onSubmit}
-      className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 sm:p-4 space-y-2.5"
+      className="sticky bottom-0 border-t border-border bg-surface p-3 sm:p-4 space-y-2.5"
     >
       {combinedError && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-3 py-2 flex items-start justify-between gap-2 text-xs text-red-700 dark:text-red-300"
+          className="rounded-xl border border-danger/30 bg-danger-soft px-3 py-2 flex items-start justify-between gap-2 text-xs text-danger-text"
         >
           <div className="flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-danger" aria-hidden="true" />
             <span>{combinedError}</span>
           </div>
           {hasLocalError && (
@@ -55,7 +56,7 @@ export function MessageComposer({
               type="button"
               onClick={onClearError}
               aria-label="Dismiss error"
-              className="p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40"
+              className="p-0.5 rounded hover:bg-danger/15 cursor-pointer"
             >
               <X className="w-3.5 h-3.5" aria-hidden="true" />
             </button>
@@ -64,14 +65,14 @@ export function MessageComposer({
       )}
 
       {pendingAttachment && (
-        <div className="rounded-xl border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-2 space-y-1.5">
+        <div className="rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 space-y-1.5">
           <div className="flex items-center justify-between gap-2 text-xs">
             <div className="flex items-center gap-2 min-w-0">
-              <Paperclip className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
-              <span className="font-medium text-slate-900 dark:text-slate-100 truncate">
+              <Paperclip className="w-3.5 h-3.5 text-primary-600 shrink-0" />
+              <span className="font-semibold text-foreground truncate">
                 {pendingAttachment.file.name}
               </span>
-              <span className="text-slate-500 dark:text-slate-400 tabular-nums shrink-0">
+              <span className="text-muted num shrink-0">
                 ({formatFileSize(pendingAttachment.file.size)})
               </span>
             </div>
@@ -80,7 +81,7 @@ export function MessageComposer({
                 type="button"
                 onClick={onAbortUpload}
                 aria-label="Cancel attachment upload"
-                className="px-2 py-0.5 rounded-md text-[11px] font-medium text-red-600 dark:text-red-400 hover:bg-red-100/70 dark:hover:bg-red-950/50"
+                className="px-2 py-0.5 rounded-md text-[11px] font-semibold text-danger-text hover:bg-danger-soft cursor-pointer"
               >
                 Cancel
               </button>
@@ -89,16 +90,16 @@ export function MessageComposer({
                 type="button"
                 onClick={onClearAttachment}
                 aria-label="Remove attachment"
-                className="p-1 rounded-lg text-slate-400 hover:text-red-600 dark:hover:text-red-400"
+                className="p-1 rounded-lg text-muted hover:text-danger-text cursor-pointer"
               >
                 <X className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             )}
           </div>
           {uploadProgress !== null && (
-            <div className="h-1.5 rounded-full bg-indigo-200 dark:bg-indigo-900 overflow-hidden">
+            <div className="h-1.5 rounded-full bg-surface overflow-hidden">
               <div
-                className="h-full rounded-full bg-indigo-600 dark:bg-indigo-400 transition-all duration-150"
+                className="h-full rounded-full bg-gradient-brand transition-all duration-150"
                 style={{width: `${uploadProgress}%`}}
               />
             </div>
@@ -121,7 +122,7 @@ export function MessageComposer({
           onClick={() => fileInputRef.current?.click()}
           aria-label="Attach file"
           title="Attach file (max 25 MB)"
-          className="inline-flex items-center justify-center w-10 h-10 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50 transition-colors shrink-0"
+          className="inline-flex items-center justify-center w-11 h-11 rounded-xl border border-border-strong bg-surface text-muted hover:text-foreground hover:bg-surface-muted disabled:opacity-50 transition-colors shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
           <Paperclip className="w-4 h-4" aria-hidden="true" />
         </button>
@@ -133,18 +134,19 @@ export function MessageComposer({
           onChange={(e) => onTextChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Write a message..."
-          className="flex-1 min-h-[40px] max-h-32 px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-950 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 resize-y"
+          className="flex-1 min-h-[44px] max-h-32 px-3.5 py-2.5 rounded-xl border border-border bg-surface-muted text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:bg-surface focus:border-primary-600 focus:ring-[3px] focus:ring-ring resize-y"
         />
 
-        <button
+        <Button
           type="submit"
+          variant="primary"
           disabled={sending || (!text.trim() && !pendingAttachment)}
           aria-label="Send message"
-          className="inline-flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white text-sm font-semibold shadow-sm transition-colors shrink-0"
+          icon={<Send className="w-4 h-4" aria-hidden="true" />}
+          className="shrink-0"
         >
-          <Send className="w-4 h-4" aria-hidden="true" />
           <span className="hidden sm:inline">{sending ? 'Sending...' : 'Send'}</span>
-        </button>
+        </Button>
       </div>
     </form>
   );

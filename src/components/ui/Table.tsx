@@ -9,7 +9,7 @@ export function TableContainer({
 }) {
   return (
     <div
-      className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden ${className}`}
+      className={`bg-surface rounded-2xl border border-border card-inset overflow-hidden ${className}`}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-left border-collapse">{children}</table>
@@ -20,8 +20,8 @@ export function TableContainer({
 
 export function TableHead({children}: {children: ReactNode}) {
   return (
-    <thead>
-      <tr className="border-b border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-400">
+    <thead className="sticky top-0 z-10 bg-surface-muted">
+      <tr className="border-b border-border text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
         {children}
       </tr>
     </thead>
@@ -30,10 +30,18 @@ export function TableHead({children}: {children: ReactNode}) {
 
 export function TableHeaderCell({
   children,
+  align = 'left',
   className = '',
 }: {
   children: ReactNode;
+  align?: 'left' | 'center' | 'right';
   className?: string;
 }) {
-  return <th className={`py-3.5 px-6 ${className}`}>{children}</th>;
+  const alignClass =
+    align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : '';
+  return (
+    <th className={`py-3.5 px-6 whitespace-nowrap ${alignClass} ${className}`}>
+      {children}
+    </th>
+  );
 }

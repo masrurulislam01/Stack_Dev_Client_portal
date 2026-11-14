@@ -1,7 +1,8 @@
 import {zodResolver} from '@hookform/resolvers/zod';
-import {useEffect, useMemo} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {useFieldArray, useForm} from 'react-hook-form';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
+import {getErrorMessage} from '@/services/serviceUtils';
 import type {
   ClientRecord,
   InvoiceFormParsed,
@@ -33,6 +34,7 @@ export function useInvoiceForm({
   lockedClientId,
   lockedProjectId,
 }: UseInvoiceFormArgs) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const defaultIssue = getTodayIsoDate();
   const defaultDue = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
 
@@ -54,22 +56,32 @@ export function useInvoiceForm({
 
   useEffect(() => {
     if (!isOpen) return;
+    setSubmitError(null);
     if (initialInvoice) {
+      const existingItems = Array.isArray(initialInvoice.lineItems)
+        ? initialInvoice.lineItems
+        : [];
       reset({
         clientId: initialInvoice.clientId,
         projectId: initialInvoice.projectId,
-        issueDate: initialInvoice.issueDate,
-        dueDate: initialInvoice.dueDate,
+        issueDate: initialInvoice.issueDate || defaultIssue,
+        dueDate: initialInvoice.dueDate || defaultDue,
         status: initialInvoice.status,
-        notes: initialInvoice.notes,
+        notes: initialInvoice.notes ?? '',
         lineItems:
-          initialInvoice.lineItems.length > 0
-            ? initialInvoice.lineItems.map((li) => ({
-                description: li.description,
-                quantity: li.quantity,
-                unitPrice: li.unitPrice,
+          existingItems.length > 0
+            ? existingItems.map((li) => ({
+                description: li.description ?? '',
+                quantity: li.quantity ?? 1,
+                unitPrice: li.unitPrice ?? 0,
               }))
-            : [{description: '', quantity: 1, unitPrice: initialInvoice.amount}],
+            : [
+                {
+                  description: '',
+                  quantity: 1,
+                  unitPrice: Number.isFinite(initialInvoice.amount) ? initialInvoice.amount : 0,
+                },
+              ],
       });
     } else {
       const firstClientId = lockedClientId || clients[0]?.id || '';
@@ -116,14 +128,20 @@ export function useInvoiceForm({
   useEscapeKey(isOpen && !formState.isSubmitting, onClose);
 
   const handleFormSubmit = form.handleSubmit(async (values: InvoiceFormParsed) => {
-    await onSave(values);
-    onClose();
+    setSubmitError(null);
+    try {
+      await onSave(values);
+      onClose();
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, 'Unable to save invoice. Please try again.'));
+    }
   });
 
   return {
     register: form.register,
     errors: formState.errors,
     isSubmitting: formState.isSubmitting,
+    submitError,
     fields,
     append,
     remove,

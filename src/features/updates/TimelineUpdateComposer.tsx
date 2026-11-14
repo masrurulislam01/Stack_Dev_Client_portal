@@ -1,7 +1,9 @@
 import {zodResolver} from '@hookform/resolvers/zod';
-import {ImagePlus, Send, X} from 'lucide-react';
+import {AlertCircle, ImagePlus, Send, X} from 'lucide-react';
 import {useState, type ChangeEvent} from 'react';
 import {useForm} from 'react-hook-form';
+import {Button, Textarea} from '@/components/ui';
+import {getErrorMessage} from '@/services/serviceUtils';
 import {
   timelineUpdateFormSchema,
   type TimelineUpdateFormParsed,
@@ -16,6 +18,7 @@ interface TimelineUpdateComposerProps {
 export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerProps) {
   const [attachments, setAttachments] = useState<string[]>([]);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [isCompressingImages, setIsCompressingImages] = useState(false);
 
   const {
@@ -60,39 +63,36 @@ export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerPro
 
   const handleValidSubmit = async (values: TimelineUpdateFormParsed) => {
     setAttachmentError(null);
-    await onPostUpdate(values.message, attachments);
-    reset({message: ''});
-    setAttachments([]);
+    setSubmitError(null);
+    try {
+      await onPostUpdate(values.message, attachments);
+      reset({message: ''});
+      setAttachments([]);
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, 'Unable to post update.'));
+    }
   };
 
   return (
     <form
       onSubmit={handleSubmit(handleValidSubmit)}
-      className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-4"
+      className="bg-surface rounded-2xl border border-border card-inset p-6 space-y-4"
       noValidate
     >
-      <div>
-        <label
-          htmlFor="timeline-message"
-          className="block text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1.5"
-        >
-          Post Project Update
-        </label>
-        <textarea
-          id="timeline-message"
-          rows={3}
-          {...register('message')}
-          placeholder="Share progress, completed screens, staging links, or sprint notes with the client..."
-          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 resize-y"
-        />
-        {errors.message && (
-          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.message.message}</p>
-        )}
-      </div>
+      <Textarea
+        id="timeline-message"
+        rows={3}
+        label="Post Project Update"
+        disabled={isSubmitting}
+        error={errors.message?.message}
+        {...register('message')}
+        placeholder="Share progress, completed screens, staging links, or sprint notes with the client..."
+      />
 
-      {attachmentError && (
-        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
-          {attachmentError}
+      {(attachmentError || submitError) && (
+        <p role="alert" className="flex items-center gap-1.5 text-xs font-medium text-danger-text">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+          <span>{submitError || attachmentError}</span>
         </p>
       )}
 
@@ -101,7 +101,7 @@ export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerPro
           {attachments.map((src, idx) => (
             <div
               key={`preview-${idx}`}
-              className="relative w-24 h-20 rounded-xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-950"
+              className="relative w-24 h-20 rounded-xl overflow-hidden border border-border bg-surface-muted"
             >
               <img
                 src={src}
@@ -111,11 +111,12 @@ export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerPro
               />
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={() =>
                   setAttachments((prev) => prev.filter((_, itemIdx) => itemIdx !== idx))
                 }
                 aria-label={`Remove attachment ${idx + 1}`}
-                className="absolute top-1 right-1 p-1 rounded-full bg-slate-950/75 text-white hover:bg-red-600 transition-colors"
+                className="absolute top-1 right-1 p-1 rounded-full bg-overlay text-white hover:bg-danger disabled:opacity-50 transition-colors cursor-pointer"
               >
                 <X className="w-3 h-3" aria-hidden="true" />
               </button>
@@ -124,9 +125,15 @@ export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerPro
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
-        <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors">
-          <ImagePlus className="w-4 h-4 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-border">
+        <label
+          className={`inline-flex items-center gap-2 min-h-[40px] px-3.5 py-2 rounded-xl border border-border-strong bg-surface text-xs font-semibold text-foreground transition-colors ${
+            isSubmitting || isCompressingImages || attachments.length >= 3
+              ? 'opacity-50 cursor-not-allowed'
+              : 'hover:bg-surface-muted cursor-pointer'
+          }`}
+        >
+          <ImagePlus className="w-4 h-4 text-primary-600" aria-hidden="true" />
           <span>
             {isCompressingImages ? 'Processing images...' : `Attach images (${attachments.length}/3)`}
           </span>
@@ -134,20 +141,21 @@ export function TimelineUpdateComposer({onPostUpdate}: TimelineUpdateComposerPro
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             multiple
-            disabled={isCompressingImages || attachments.length >= 3}
+            disabled={isSubmitting || isCompressingImages || attachments.length >= 3}
             onChange={handleImageSelect}
             className="sr-only"
           />
         </label>
 
-        <button
+        <Button
           type="submit"
+          variant="primary"
+          loading={isSubmitting}
           disabled={isSubmitting || isCompressingImages}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors"
+          icon={<Send className="w-4 h-4" aria-hidden="true" />}
         >
-          <Send className="w-4 h-4" aria-hidden="true" />
-          <span>{isSubmitting ? 'Posting...' : 'Post Update'}</span>
-        </button>
+          {isSubmitting ? 'Posting...' : 'Post Update'}
+        </Button>
       </div>
     </form>
   );

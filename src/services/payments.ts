@@ -4,7 +4,7 @@ import type {
   PaymentSubmissionStatus,
 } from '@/config/constants';
 import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import {assertSafeRecordId, getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
 import type {
   DbInvoiceStatus,
   DbPaymentSubmissionMethod,
@@ -146,11 +146,12 @@ export async function list(
 }
 
 export async function getById(id: string): Promise<PaymentSubmissionRecord | null> {
+  const safeId = assertSafeRecordId(id, 'payment submission');
   const rows = await selectWithFallback(async (selectStr) => {
     return await supabase
       .from('payment_submissions')
       .select(selectStr)
-      .eq('id', id)
+      .eq('id', safeId)
       .limit(1);
   });
 
@@ -200,8 +201,30 @@ export async function create(
   input: CreatePaymentSubmissionInput,
 ): Promise<PaymentSubmissionRecord> {
   const valid = parseServiceInput(createPaymentSubmissionInputSchema, input);
+  const safeInvoiceId = assertSafeRecordId(valid.invoiceId, 'invoice');
 
-  const duplicate = await isTransactionIdTakenForInvoice(valid.invoiceId, valid.transactionId);
+  const {
+    data: {session},
+  } = await supabase.auth.getSession();
+  const submittedBy = session?.user?.id || valid.submittedBy;
+
+  const {data: invoiceRow, error: invoiceErr} = await supabase
+    .from('invoices')
+    .select('id, status')
+    .eq('id', safeInvoiceId)
+    .maybeSingle();
+
+  if (invoiceErr) {
+    throw new Error(getErrorMessage(invoiceErr, 'Unable to verify target invoice.'));
+  }
+  if (!invoiceRow) {
+    throw new Error('Invoice not found or you do not have permission to pay this invoice.');
+  }
+  if (invoiceRow.status === 'Paid' || invoiceRow.status === 'Draft') {
+    throw new Error('Payments can only be submitted for unpaid Sent or Overdue invoices.');
+  }
+
+  const duplicate = await isTransactionIdTakenForInvoice(safeInvoiceId, valid.transactionId);
   if (duplicate) {
     throw new Error(
       `Transaction ID "${valid.transactionId}" has already been submitted for this invoice. Please check your reference and try again.`,
@@ -211,8 +234,8 @@ export async function create(
   const {data, error} = await supabase
     .from('payment_submissions')
     .insert({
-      invoice_id: valid.invoiceId,
-      submitted_by: valid.submittedBy,
+      invoice_id: safeInvoiceId,
+      submitted_by: submittedBy,
       method: valid.method as DbPaymentSubmissionMethod,
       sender_number: valid.senderNumber,
       transaction_id: valid.transactionId,
@@ -246,6 +269,7 @@ export async function update(
   id: string,
   input: UpdatePaymentSubmissionInput,
 ): Promise<PaymentSubmissionRecord> {
+  const safeId = assertSafeRecordId(id, 'payment submission');
   const valid = parseServiceInput(updatePaymentSubmissionInputSchema, input);
   const payload: Record<string, unknown> = {};
   if (valid.status !== undefined) payload.status = valid.status as DbPaymentSubmissionStatus;
@@ -260,13 +284,13 @@ export async function update(
   const {error} = await supabase
     .from('payment_submissions')
     .update(payload)
-    .eq('id', id);
+    .eq('id', safeId);
 
   if (error) {
     throw new Error(getErrorMessage(error, 'Unable to update payment submission.'));
   }
 
-  const updated = await getById(id);
+  const updated = await getById(safeId);
   if (!updated) {
     throw new Error('Updated payment submission could not be found.');
   }
@@ -276,15 +300,16 @@ export async function update(
 export async function verifyAndMarkInvoicePaid(
   submission: PaymentSubmissionRecord,
 ): Promise<PaymentSubmissionRecord> {
+  const safeId = assertSafeRecordId(submission.id, 'payment submission');
   const {error} = await supabase.rpc('verify_payment_submission', {
-    p_submission_id: submission.id,
+    p_submission_id: safeId,
   });
 
   if (error) {
     throw new Error(getErrorMessage(error, 'Unable to verify payment submission.'));
   }
 
-  const updated = await getById(submission.id);
+  const updated = await getById(safeId);
   if (!updated) {
     throw new Error('Payment was verified, but the updated record could not be loaded.');
   }
@@ -296,9 +321,10 @@ export async function rejectSubmission(
   reason: string,
 ): Promise<PaymentSubmissionRecord> {
   const valid = parseServiceInput(rejectPaymentInputSchema, {submissionId, reason});
+  const safeId = assertSafeRecordId(valid.submissionId, 'payment submission');
 
   const {error} = await supabase.rpc('reject_payment_submission', {
-    p_submission_id: valid.submissionId,
+    p_submission_id: safeId,
     p_reason: valid.reason,
   });
 
@@ -306,7 +332,7 @@ export async function rejectSubmission(
     throw new Error(getErrorMessage(error, 'Unable to reject payment submission.'));
   }
 
-  const updated = await getById(valid.submissionId);
+  const updated = await getById(safeId);
   if (!updated) {
     throw new Error('Payment was rejected, but the updated record could not be loaded.');
   }
@@ -314,7 +340,8 @@ export async function rejectSubmission(
 }
 
 export async function remove(id: string): Promise<void> {
-  const {error} = await supabase.from('payment_submissions').delete().eq('id', id);
+  const safeId = assertSafeRecordId(id, 'payment submission');
+  const {error} = await supabase.from('payment_submissions').delete().eq('id', safeId);
   if (error) {
     throw new Error(getErrorMessage(error, 'Unable to delete payment submission.'));
   }

@@ -1,18 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  changePasswordFormSchema,
   clientFormSchema,
+  createUpdateInputSchema,
   invoiceFormSchema,
+  isSafeAttachmentUrl,
+  isSafeInternalLink,
   loginFormSchema,
   paymentSubmissionFormSchema,
   projectFormSchema,
+  setNewPasswordFormSchema,
   submitMilestoneReviewInputSchema,
 } from '@/types/schemas';
+import {escapeCsvCell} from '@/utils/backupExport';
 import {
   formatFileSize,
   getFileTypeLabel,
+  hasUnsafeFileName,
   sanitizeStorageFileName,
   validateProjectFile,
+  validateProjectFileMagicBytes,
 } from '@/utils/fileSharing';
 import {formatBDT, formatDateDisplay, formatPdfBDT} from '@/utils/format';
 import {
@@ -63,6 +71,9 @@ test('file sharing utilities format sizes, labels, sanitize names, and validate 
   assert.equal(formatFileSize(2 * 1024 * 1024), '2.00 MB');
   assert.equal(getFileTypeLabel('pdf'), 'PDF Document');
   assert.equal(sanitizeStorageFileName('  my design (final).png  '), 'my_design_final_.png');
+  assert.equal(hasUnsafeFileName('../secret.pdf'), true);
+  assert.equal(hasUnsafeFileName('bad\u202Egpj.png'), true);
+  assert.equal(hasUnsafeFileName('valid-design_v1.png'), false);
 
   const emptyFile = new File([], 'empty.pdf', {type: 'application/pdf'});
   const emptyRes = validateProjectFile(emptyFile);
@@ -81,11 +92,89 @@ test('file sharing utilities format sizes, labels, sanitize names, and validate 
   }
 });
 
+test('validateProjectFileMagicBytes accepts valid PNG/PDF and blocks spoofed HTML payloads', async () => {
+  const validPng = new File(
+    [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00])],
+    'wireframe.png',
+    {type: 'image/png'},
+  );
+  assert.equal((await validateProjectFileMagicBytes(validPng)).valid, true);
+
+  const validPdf = new File(['%PDF-1.7\n1 0 obj\n'], 'invoice.pdf', {type: 'application/pdf'});
+  assert.equal((await validateProjectFileMagicBytes(validPdf)).valid, true);
+
+  const spoofedHtmlAsPdf = new File(
+    ['<!DOCTYPE html><script>alert(1)</script>'],
+    'evil.pdf',
+    {type: 'application/pdf'},
+  );
+  assert.equal((await validateProjectFileMagicBytes(spoofedHtmlAsPdf)).valid, false);
+
+  const spoofedTextAsPng = new File(['plain text masquerading as png'], 'fake.png', {
+    type: 'image/png',
+  });
+  assert.equal((await validateProjectFileMagicBytes(spoofedTextAsPng)).valid, false);
+});
+
+test('escapeCsvCell neutralizes spreadsheet formula injection while quoting commas and quotes', () => {
+  assert.equal(escapeCsvCell('=CMD("calc")'), `"'=CMD(""calc"")"`);
+  assert.equal(escapeCsvCell('+1+1'), "'+1+1");
+  assert.equal(escapeCsvCell('-100'), "'-100");
+  assert.equal(escapeCsvCell('@SUM(A1:A2)'), "'@SUM(A1:A2)");
+  assert.equal(escapeCsvCell('\t=HYPERLINK()'), "'\t=HYPERLINK()");
+  assert.equal(escapeCsvCell('Apex Retail, Ltd'), '"Apex Retail, Ltd"');
+  assert.equal(escapeCsvCell(null), '');
+});
+
+test('attachment URLs and notification links enforce safe schemes and paths', () => {
+  assert.equal(isSafeAttachmentUrl('https://example.supabase.co/storage/v1/img.png'), true);
+  assert.equal(isSafeAttachmentUrl('data:image/png;base64,iVBORw0KGgo='), true);
+  assert.equal(isSafeAttachmentUrl('javascript:alert(1)'), false);
+  assert.equal(isSafeAttachmentUrl('data:image/svg+xml;base64,PHN2Zz4='), false);
+  assert.equal(isSafeAttachmentUrl('http://insecure.example.com/a.png'), false);
+
+  assert.equal(isSafeInternalLink('/projects/proj-1'), true);
+  assert.equal(isSafeInternalLink('//evil.com'), false);
+  assert.equal(isSafeInternalLink('https://evil.com'), false);
+  assert.equal(isSafeInternalLink('/\\evil'), false);
+
+  assert.equal(
+    createUpdateInputSchema.safeParse({
+      projectId: 'p-1',
+      authorId: 'u-1',
+      message: 'Preview attached',
+      attachments: ['javascript:alert(1)'],
+    }).success,
+    false,
+  );
+});
+
 test('Zod form and service schemas validate valid and reject invalid payloads', () => {
   assert.equal(loginFormSchema.safeParse({email: 'bad', password: ''}).success, false);
   assert.equal(
     loginFormSchema.safeParse({email: 'admin@stackdev.com', password: 'secret'}).success,
     true,
+  );
+
+  assert.equal(
+    setNewPasswordFormSchema.safeParse({newPassword: 'short7', confirmPassword: 'short7'})
+      .success,
+    false,
+  );
+  assert.equal(
+    setNewPasswordFormSchema.safeParse({
+      newPassword: 'strongPass8',
+      confirmPassword: 'strongPass8',
+    }).success,
+    true,
+  );
+  assert.equal(
+    changePasswordFormSchema.safeParse({
+      currentPassword: 'oldPassword1',
+      newPassword: '1234567',
+      confirmPassword: '1234567',
+    }).success,
+    false,
   );
 
   assert.equal(

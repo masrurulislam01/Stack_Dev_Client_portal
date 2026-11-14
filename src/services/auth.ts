@@ -102,7 +102,7 @@ export function mapAuthErrorMessage(error: unknown): string {
     return 'Your new password must be different from your previous password.';
   }
   if (lower.includes('password should be at least')) {
-    return 'Password must be at least 6 characters long.';
+    return 'Password must be at least 8 characters long.';
   }
   if (lower.includes('failed to fetch') || lower.includes('network')) {
     return 'Network error. Please check your internet connection and try again.';
@@ -219,6 +219,7 @@ export async function updateRecoveryPassword(newPassword: string): Promise<{
   if (!data.user) {
     return {authUser: null, profile: null};
   }
+  await supabase.auth.signOut({scope: 'others'}).catch(() => undefined);
   const profileRow = await fetchProfileRow(data.user.id);
   return {authUser: data.user, profile: profileRow};
 }
@@ -275,4 +276,5 @@ export async function changePassword(
   if (updateError) {
     throw new Error(mapAuthErrorMessage(updateError));
   }
+  await supabase.auth.signOut({scope: 'others'}).catch(() => undefined);
 }

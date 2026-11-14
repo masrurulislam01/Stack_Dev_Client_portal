@@ -14,6 +14,7 @@ export interface ConfirmDialogProps {
   cancelLabel?: string;
   variant?: 'danger' | 'primary';
   loading?: boolean;
+  error?: string | null;
 }
 
 export function ConfirmDialog({
@@ -28,6 +29,7 @@ export function ConfirmDialog({
   cancelLabel = 'Cancel',
   variant = 'danger',
   loading = false,
+  error = null,
 }: ConfirmDialogProps) {
   return (
     <Modal
@@ -39,9 +41,15 @@ export function ConfirmDialog({
       disableClose={loading}
     >
       <div className="p-6 space-y-5">
-        <div className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-          {message}
-        </div>
+        {error && (
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger-soft px-3.5 py-2.5 text-xs font-medium text-danger-text"
+          >
+            {error}
+          </div>
+        )}
+        <div className="text-sm text-body leading-relaxed">{message}</div>
         <div className="flex items-center justify-end gap-3">
           <Button variant="outline" onClick={onClose} disabled={loading}>
             {cancelLabel}

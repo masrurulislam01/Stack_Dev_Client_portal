@@ -9,7 +9,7 @@ export type ButtonVariant =
   | 'danger'
   | 'success';
 
-export type ButtonSize = 'sm' | 'md';
+export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -20,22 +20,23 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    'bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm disabled:opacity-60',
+    'bg-gradient-brand text-white hover:brightness-110 hover:shadow-brand border border-transparent',
   secondary:
-    'bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 disabled:opacity-60',
+    'bg-surface border border-border-strong text-foreground hover:bg-surface-muted shadow-xs',
   outline:
-    'border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-60',
+    'bg-surface border border-border-strong text-foreground hover:bg-surface-muted shadow-xs',
   ghost:
-    'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-60',
+    'bg-transparent text-body hover:bg-surface-muted hover:text-foreground',
   danger:
-    'bg-red-600 hover:bg-red-700 text-white shadow-sm disabled:opacity-60',
+    'bg-danger-soft text-danger-text border border-danger/25 hover:bg-danger hover:text-white hover:border-danger',
   success:
-    'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm disabled:opacity-60',
+    'bg-success text-white hover:brightness-110 border border-transparent shadow-xs',
 };
 
 const SIZE_CLASSES: Record<ButtonSize, string> = {
-  sm: 'min-h-[36px] px-3 py-1.5 text-xs rounded-lg',
+  sm: 'min-h-[36px] px-3 py-1.5 text-xs rounded-xl',
   md: 'min-h-[44px] px-4 py-2.5 text-sm rounded-xl',
+  lg: 'min-h-[52px] px-5 py-3 text-sm rounded-xl',
 };
 
 export function Button({
@@ -53,7 +54,7 @@ export function Button({
     <button
       type={type}
       disabled={disabled || loading}
-      className={`inline-flex items-center justify-center gap-2 font-semibold transition-colors cursor-pointer disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
+      className={`inline-flex items-center justify-center gap-2 font-semibold transition-all duration-150 cursor-pointer active:scale-[0.98] disabled:opacity-50 disabled:shadow-none disabled:active:scale-100 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${VARIANT_CLASSES[variant]} ${SIZE_CLASSES[size]} ${className}`}
       {...props}
     >
       {loading ? (

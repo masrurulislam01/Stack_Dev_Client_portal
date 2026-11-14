@@ -68,7 +68,11 @@ export function useAuthSession() {
         setAuthError(null);
       } catch (err) {
         if (!active || seq !== syncSeqRef.current) return;
-        if (!options.silent) setAuthError(mapAuthErrorMessage(err));
+        if (!options.silent) {
+          hadActiveSessionRef.current = false;
+          clearState();
+          setAuthError(mapAuthErrorMessage(err));
+        }
       } finally {
         if (active && seq === syncSeqRef.current) setLoading(false);
       }
@@ -88,8 +92,13 @@ export function useAuthSession() {
           setLoading(false);
           return;
         }
+        const searchParams =
+          typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
         const hashIndicatesRecovery =
-          typeof window !== 'undefined' && window.location.hash.includes('type=recovery');
+          typeof window !== 'undefined' &&
+          (window.location.hash.includes('type=recovery') ||
+            searchParams?.get('type') === 'recovery' ||
+            (window.location.pathname === '/reset-password' && Boolean(searchParams?.get('code'))));
         await applySession(data.session, {recovery: hashIndicatesRecovery});
       } catch {
         if (!active) return;

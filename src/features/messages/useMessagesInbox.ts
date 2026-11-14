@@ -19,17 +19,24 @@ export function useMessagesInbox() {
   const {
     data: projects = [],
     isLoading: loadingProjects,
+    isFetching: fetchingProjects,
     error: projectsError,
+    refetch: refetchProjects,
   } = useQuery({
     queryKey: queryKeys.projects.list(clientFilterId),
     queryFn: async () => {
       const list = await listProjects({clientId: clientFilterId});
-      return [...list].sort((a, b) => a.title.localeCompare(b.title));
+      return [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
     },
     enabled: Boolean(user && (isAdmin || user.clientId)),
   });
 
-  const {data: messages = [], error: messagesError} = useQuery({
+  const {
+    data: messages = [],
+    isFetching: fetchingMessages,
+    error: messagesError,
+    refetch: refetchMessages,
+  } = useQuery({
     queryKey: queryKeys.messages.list({clientId: clientFilterId}),
     queryFn: () =>
       listMessages({
@@ -79,7 +86,7 @@ export function useMessagesInbox() {
 
     enriched.sort((a, b) => {
       if (b.sortMs !== a.sortMs) return b.sortMs - a.sortMs;
-      return a.project.title.localeCompare(b.project.title);
+      return (a.project.title ?? '').localeCompare(b.project.title ?? '');
     });
 
     return enriched;
@@ -101,10 +108,21 @@ export function useMessagesInbox() {
     }
   }, [selectedProjectId, threadSummaries]);
 
+  const refetchPage = () => {
+    if (projectsError) void refetchProjects();
+    if (messagesError) void refetchMessages();
+    if (!projectsError && !messagesError) {
+      void refetchProjects();
+      void refetchMessages();
+    }
+  };
+
   return {
     user,
     loadingProjects,
+    retrying: (fetchingProjects && !loadingProjects) || fetchingMessages,
     pageError: projectsError || messagesError,
+    refetchPage,
     threadSummaries,
     selectedProjectId,
     setSelectedProjectId,

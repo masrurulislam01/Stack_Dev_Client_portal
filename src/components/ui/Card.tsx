@@ -1,13 +1,18 @@
 import type {HTMLAttributes, ReactNode} from 'react';
 
 export interface CardProps extends HTMLAttributes<HTMLDivElement> {
+  interactive?: boolean;
   children: ReactNode;
 }
 
-export function Card({className = '', children, ...props}: CardProps) {
+export function Card({interactive = false, className = '', children, ...props}: CardProps) {
   return (
     <div
-      className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm ${className}`}
+      className={`bg-surface rounded-2xl border border-border card-inset ${
+        interactive
+          ? 'transition-all duration-150 hover:shadow-md hover:border-primary-200 hover:-translate-y-0.5'
+          : ''
+      } ${className}`}
       {...props}
     >
       {children}
@@ -22,13 +27,7 @@ export function CardHeader({
   className?: string;
   children: ReactNode;
 }) {
-  return (
-    <div
-      className={`px-6 py-4 border-b border-slate-200 dark:border-slate-800 ${className}`}
-    >
-      {children}
-    </div>
-  );
+  return <div className={`px-6 py-4 border-b border-border ${className}`}>{children}</div>;
 }
 
 export function CardBody({

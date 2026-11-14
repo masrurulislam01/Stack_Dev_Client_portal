@@ -43,9 +43,14 @@ function triggerBlobDownload(filename: string, content: string, mimeType: string
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function escapeCsvCell(value: unknown): string {
+const FORMULA_PREFIX_REGEX = /^[\s]*[=+\-@\t\r]/;
+
+export function escapeCsvCell(value: unknown): string {
   if (value === null || value === undefined) return '';
-  const str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  let str = typeof value === 'object' ? JSON.stringify(value) : String(value);
+  if (FORMULA_PREFIX_REGEX.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\r\n]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }

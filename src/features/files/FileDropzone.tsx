@@ -1,14 +1,16 @@
 import {UploadCloud} from 'lucide-react';
-import {useRef, useState, type ChangeEvent, type DragEvent} from 'react';
+import {useRef, useState, type ChangeEvent, type DragEvent, type RefObject} from 'react';
 import {FILE_INPUT_ACCEPT} from '@/utils/fileSharing';
 
 interface FileDropzoneProps {
   onSelectFiles: (files: FileList | File[]) => void;
+  inputRef?: RefObject<HTMLInputElement | null>;
 }
 
-export function FileDropzone({onSelectFiles}: FileDropzoneProps) {
+export function FileDropzone({onSelectFiles, inputRef}: FileDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const internalInputRef = useRef<HTMLInputElement | null>(null);
+  const fileInputRef = inputRef ?? internalInputRef;
   const dragCounterRef = useRef(0);
 
   const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -57,8 +59,8 @@ export function FileDropzone({onSelectFiles}: FileDropzoneProps) {
       onDrop={handleDrop}
       className={`rounded-2xl border-2 border-dashed p-6 sm:p-8 text-center transition-colors ${
         isDragging
-          ? 'border-indigo-600 bg-indigo-50/70 dark:border-indigo-400 dark:bg-indigo-950/40'
-          : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-indigo-400 dark:hover:border-indigo-500'
+          ? 'border-primary-600 bg-primary-50'
+          : 'border-border-strong bg-surface hover:border-primary-200'
       }`}
     >
       <input
@@ -70,24 +72,24 @@ export function FileDropzone({onSelectFiles}: FileDropzoneProps) {
         className="sr-only"
         aria-label="Upload project files"
       />
-      <div className="mx-auto w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
+      <div className="mx-auto w-12 h-12 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center mb-3">
         <UploadCloud className="w-6 h-6" aria-hidden="true" />
       </div>
-      <h3 className="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100">
+      <h3 className="font-heading text-sm sm:text-base font-semibold text-foreground">
         {isDragging ? 'Drop files to upload' : 'Upload files to this project'}
       </h3>
-      <p className="mt-1 text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-lg mx-auto">
+      <p className="mt-1 text-xs sm:text-sm text-muted max-w-lg mx-auto">
         Drag and drop multiple files here, or{' '}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 rounded"
+          className="font-semibold text-primary-600 hover:text-primary-700 hover:underline cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring rounded"
         >
           browse from your device
         </button>
         .
       </p>
-      <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+      <p className="mt-2 text-xs text-subtle">
         Allowed: Images (PNG, JPG, GIF, WebP, BMP, HEIC), PDF, ZIP, DOC/DOCX, XLS/XLSX · Max 25
         MB per file
       </p>

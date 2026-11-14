@@ -3,6 +3,7 @@ export {Button, type ButtonProps, type ButtonSize, type ButtonVariant} from '@/c
 export {Card, CardBody, CardHeader, type CardProps} from '@/components/ui/Card';
 export {ConfirmDialog, type ConfirmDialogProps} from '@/components/ui/ConfirmDialog';
 export {EmptyState, type EmptyStateProps} from '@/components/ui/EmptyState';
+export {ErrorAlert, type ErrorAlertProps} from '@/components/ui/ErrorAlert';
 export {ErrorBoundary} from '@/components/ui/ErrorBoundary';
 export {Input, Textarea, type InputProps, type TextareaProps} from '@/components/ui/Input';
 export {Modal, type ModalProps} from '@/components/ui/Modal';

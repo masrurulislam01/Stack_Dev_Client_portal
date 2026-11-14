@@ -26,11 +26,18 @@ export function useProjectInvoices(
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
   const [markingPaidInvoice, setMarkingPaidInvoice] = useState<InvoiceRecord | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceRecord | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const {data: invoices = [], isLoading: loading} = useQuery({
+  const {
+    data: invoices = [],
+    isLoading: loading,
+    isFetching: isRetryingInvoices,
+    error: invoicesError,
+    refetch: refetchInvoices,
+  } = useQuery({
     queryKey: queryKeys.invoices.list({projectId: project.id}),
     queryFn: () => listInvoices({projectId: project.id, includeDrafts: isAdmin}),
   });
@@ -47,7 +54,7 @@ export function useProjectInvoices(
 
   const {data: allInvoicesForNumbers = []} = useQuery({
     queryKey: queryKeys.invoices.list(),
-    queryFn: () => listInvoices(),
+    queryFn: () => listInvoices({includeDrafts: true}),
     enabled: isAdmin,
   });
 
@@ -96,19 +103,33 @@ export function useProjectInvoices(
     try {
       await markPaid({invoice, values, user});
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Unable to mark invoice paid.'));
+      const msg = getErrorMessage(err, 'Unable to mark invoice paid.');
+      setActionError(msg);
+      throw err;
     }
   };
 
-  const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!isAdmin) return;
+  const requestDeleteInvoice = (invoice: InvoiceRecord) => {
+    setDeleteError(null);
+    setInvoiceToDelete(invoice);
+  };
+
+  const cancelDeleteInvoice = () => {
+    if (deletingId) return;
+    setDeleteError(null);
+    setInvoiceToDelete(null);
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!isAdmin || !invoiceToDelete) return;
     setActionError(null);
-    setDeletingId(invoiceId);
+    setDeleteError(null);
+    setDeletingId(invoiceToDelete.id);
     try {
-      await deleteInvoice(invoiceId);
-      setConfirmDeleteId(null);
+      await deleteInvoice(invoiceToDelete.id);
+      setInvoiceToDelete(null);
     } catch (err) {
-      setActionError(getErrorMessage(err, 'Unable to delete invoice.'));
+      setDeleteError(getErrorMessage(err, 'Unable to delete invoice.'));
     } finally {
       setDeletingId(null);
     }
@@ -118,6 +139,9 @@ export function useProjectInvoices(
     isAdmin,
     invoices,
     loading,
+    invoicesError,
+    isRetryingInvoices,
+    refetchInvoices,
     pendingInvoiceIds,
     nextInvoiceNumber,
     resolvedClients,
@@ -127,13 +151,15 @@ export function useProjectInvoices(
     setEditingInvoice,
     markingPaidInvoice,
     setMarkingPaidInvoice,
-    confirmDeleteId,
-    setConfirmDeleteId,
+    invoiceToDelete,
+    deleteError,
     deletingId,
     actionError,
     setActionError,
     handleSaveInvoice,
     handleConfirmMarkPaid,
+    requestDeleteInvoice,
+    cancelDeleteInvoice,
     handleDeleteInvoice,
   };
 }

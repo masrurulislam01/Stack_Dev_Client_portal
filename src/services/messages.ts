@@ -260,11 +260,14 @@ export function subscribeToMessages(
   onChange: () => void,
   projectId?: string,
 ): () => void {
-  const suffix = projectId
-    ? `project-${projectId}`
-    : `global-${Math.random().toString(36).slice(2, 8)}`;
+  let active = true;
+  const uniqueId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const channelName = projectId
+    ? `messages-rt-project-${projectId}-${uniqueId}`
+    : `messages-rt-global-${uniqueId}`;
+
   const channel = supabase
-    .channel(`messages-rt-${suffix}`)
+    .channel(channelName)
     .on(
       'postgres_changes',
       {
@@ -273,7 +276,9 @@ export function subscribeToMessages(
         table: 'messages',
         ...(projectId ? {filter: `project_id=eq.${projectId}`} : {}),
       },
-      () => onChange(),
+      () => {
+        if (active) onChange();
+      },
     )
     .on(
       'postgres_changes',
@@ -282,11 +287,14 @@ export function subscribeToMessages(
         schema: 'public',
         table: 'message_reads',
       },
-      () => onChange(),
+      () => {
+        if (active) onChange();
+      },
     )
     .subscribe();
 
   return () => {
+    active = false;
     void supabase.removeChannel(channel);
   };
 }

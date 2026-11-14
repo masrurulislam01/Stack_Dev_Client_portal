@@ -49,7 +49,25 @@ export function useInvoiceMutations(detailInvoiceId?: string) {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeInvoice(id),
-    onSuccess: () => invalidateAll(),
+    onMutate: async (id) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.invoices.prefix});
+      const previous = queryClient.getQueriesData<InvoiceRecord[]>({
+        queryKey: queryKeys.invoices.prefix,
+      });
+      queryClient.setQueriesData<InvoiceRecord[]>(
+        {queryKey: queryKeys.invoices.prefix},
+        (old) => (old ? old.filter((inv) => inv.id !== id) : old),
+      );
+      return {previous};
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previous) {
+        for (const [key, data] of context.previous) {
+          queryClient.setQueryData(key, data);
+        }
+      }
+    },
+    onSettled: () => invalidateAll(),
   });
 
   const saveInvoice = useCallback(

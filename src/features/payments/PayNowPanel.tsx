@@ -1,5 +1,6 @@
 import {AlertCircle} from 'lucide-react';
 import {useState} from 'react';
+import {Card} from '@/components/ui';
 import type {PaymentSubmissionMethod} from '@/config/constants';
 import {PaymentInstructionsCard} from '@/features/payments/PaymentInstructionsCard';
 import {PaymentProofForm} from '@/features/payments/PaymentProofForm';
@@ -25,32 +26,32 @@ export function PayNowPanel({
   const [selectedMethod, setSelectedMethod] = useState<PaymentSubmissionMethod>('bKash');
   const [showExtraForm, setShowExtraForm] = useState(false);
 
-  const pendingSubmissions = existingSubmissions.filter((s) => s.status === 'Pending');
-  const latestRejected = existingSubmissions.find((s) => s.status === 'Rejected');
+  const submissions = existingSubmissions ?? [];
+  const pendingSubmissions = submissions.filter((s) => s.status === 'Pending');
+  const latestRejected = submissions.find((s) => s.status === 'Rejected');
   const isUnderReview = pendingSubmissions.length > 0;
   const showForm = !isUnderReview || showExtraForm;
-  const amountText = formatBDT(invoice.amount);
+  const safeAmount = Number.isFinite(invoice.amount) ? invoice.amount : 0;
+  const amountText = formatBDT(safeAmount);
+  const safeInvoiceNumber = invoice.invoiceNumber || 'Invoice';
 
   return (
-    <section
+    <Card
       id="pay-now"
       aria-labelledby="pay-now-heading"
-      className="print:hidden bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden"
+      className="print:hidden overflow-hidden"
     >
-      <div className="px-6 py-5 border-b border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div className="px-6 py-5 border-b border-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3
-            id="pay-now-heading"
-            className="text-base font-semibold text-slate-900 dark:text-slate-100"
-          >
+          <h3 id="pay-now-heading" className="font-heading text-lg font-semibold text-foreground">
             Pay Now
           </h3>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">
+          <p className="text-xs sm:text-sm text-muted mt-0.5 num">
             Send {amountText} to Stack Dev via bKash, Nagad, or Bank transfer, then submit your Transaction ID for verification.
           </p>
         </div>
 
-        <span className="text-sm font-bold text-indigo-700 dark:text-indigo-400 tabular-nums whitespace-nowrap">
+        <span className="font-heading text-base font-bold text-primary-600 num whitespace-nowrap">
           Due: {amountText}
         </span>
       </div>
@@ -67,12 +68,13 @@ export function PayNowPanel({
         {!isUnderReview && latestRejected && (
           <div
             role="alert"
-            className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 flex items-start gap-2.5 text-xs sm:text-sm text-red-700 dark:text-red-300"
+            className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 flex items-start gap-2.5 text-xs sm:text-sm text-danger-text"
           >
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
             <div>
               <p className="font-semibold">
-                Previous submission ({latestRejected.method} · TrxID: {latestRejected.transactionId}) was rejected
+                Previous submission ({latestRejected.method || 'Payment'} · TrxID:{' '}
+                <span className="font-mono">{latestRejected.transactionId || '—'}</span>) was rejected
               </p>
               {latestRejected.rejectionReason && (
                 <p className="mt-0.5">Reason: {latestRejected.rejectionReason}</p>
@@ -85,13 +87,13 @@ export function PayNowPanel({
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             <PaymentInstructionsCard
               amountText={amountText}
-              invoiceNumber={invoice.invoiceNumber}
+              invoiceNumber={safeInvoiceNumber}
               selectedMethod={selectedMethod}
             />
             <PaymentProofForm
               invoiceId={invoice.id}
-              invoiceAmount={invoice.amount}
-              existingSubmissions={existingSubmissions}
+              invoiceAmount={safeAmount}
+              existingSubmissions={submissions}
               selectedMethod={selectedMethod}
               onMethodChange={setSelectedMethod}
               onSubmitProof={onSubmitProof}
@@ -100,6 +102,6 @@ export function PayNowPanel({
           </div>
         )}
       </div>
-    </section>
+    </Card>
   );
 }

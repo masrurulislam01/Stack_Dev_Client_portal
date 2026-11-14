@@ -28,7 +28,9 @@ export function useAdminPayments() {
   const {
     data: submissions = [],
     isLoading: loading,
+    isFetching,
     error,
+    refetch,
   } = useQuery({
     queryKey: queryKeys.payments.list(),
     queryFn: () => listPaymentSubmissions(),
@@ -41,14 +43,67 @@ export function useAdminPayments() {
     ]);
   };
 
+  type PaymentSnapshot = Array<[readonly unknown[], PaymentSubmissionRecord[] | undefined]>;
+
   const verifyMutation = useMutation({
     mutationFn: (submission: PaymentSubmissionRecord) => verifyAndMarkInvoicePaid(submission),
-    onSuccess: () => invalidateAll(),
+    onMutate: async (submission) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.payments.prefix});
+      const previous = queryClient.getQueriesData<PaymentSubmissionRecord[]>({
+        queryKey: queryKeys.payments.prefix,
+      });
+      queryClient.setQueriesData<PaymentSubmissionRecord[]>(
+        {queryKey: queryKeys.payments.prefix},
+        (old) =>
+          old?.map((item) =>
+            item.id === submission.id
+              ? {
+                  ...item,
+                  status: 'Verified',
+                  invoiceStatus: 'Paid',
+                  verifiedAt: new Date().toISOString(),
+                }
+              : item,
+          ),
+      );
+      return {previous};
+    },
+    onError: (_err, _submission, context?: {previous: PaymentSnapshot}) => {
+      context?.previous?.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+    },
+    onSettled: () => invalidateAll(),
   });
 
   const rejectMutation = useMutation({
     mutationFn: ({id, reason}: {id: string; reason: string}) => rejectSubmission(id, reason),
-    onSuccess: () => invalidateAll(),
+    onMutate: async ({id, reason}) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.payments.prefix});
+      const previous = queryClient.getQueriesData<PaymentSubmissionRecord[]>({
+        queryKey: queryKeys.payments.prefix,
+      });
+      queryClient.setQueriesData<PaymentSubmissionRecord[]>(
+        {queryKey: queryKeys.payments.prefix},
+        (old) =>
+          old?.map((item) =>
+            item.id === id
+              ? {
+                  ...item,
+                  status: 'Rejected',
+                  rejectionReason: reason,
+                }
+              : item,
+          ),
+      );
+      return {previous};
+    },
+    onError: (_err, _vars, context?: {previous: PaymentSnapshot}) => {
+      context?.previous?.forEach(([key, data]) => {
+        queryClient.setQueryData(key, data);
+      });
+    },
+    onSettled: () => invalidateAll(),
   });
 
   const counts = useMemo(() => {
@@ -69,11 +124,11 @@ export function useAdminPayments() {
       if (statusFilter !== 'ALL' && s.status !== statusFilter) return false;
       if (!term) return true;
       return (
-        s.invoiceNumber.toLowerCase().includes(term) ||
-        s.clientName.toLowerCase().includes(term) ||
-        s.transactionId.toLowerCase().includes(term) ||
-        s.senderNumber.toLowerCase().includes(term) ||
-        s.method.toLowerCase().includes(term)
+        (s.invoiceNumber ?? '').toLowerCase().includes(term) ||
+        (s.clientName ?? '').toLowerCase().includes(term) ||
+        (s.transactionId ?? '').toLowerCase().includes(term) ||
+        (s.senderNumber ?? '').toLowerCase().includes(term) ||
+        (s.method ?? '').toLowerCase().includes(term)
       );
     });
   }, [submissions, statusFilter, search]);
@@ -81,6 +136,8 @@ export function useAdminPayments() {
   const handleVerify = async (submission: PaymentSubmissionRecord) => {
     if (processingId || submission.status !== 'Pending') return;
     setProcessingId(submission.id);
+    const invoiceLabel = submission.invoiceNumber || 'Invoice';
+    const amountSafe = Number.isFinite(submission.amountBdt) ? submission.amountBdt : 0;
     try {
       await verifyMutation.mutateAsync(submission);
       if (user && submission.clientId) {
@@ -89,8 +146,8 @@ export function useAdminPayments() {
           clientId: submission.clientId,
           projectId: submission.projectId,
           type: 'invoice',
-          title: `Payment verified: ${submission.invoiceNumber}`,
-          body: `${formatBDT(submission.amountBdt)} verified via ${submission.method} (TrxID: ${submission.transactionId}). Invoice marked Paid.`,
+          title: `Payment verified: ${invoiceLabel}`,
+          body: `${formatBDT(amountSafe)} verified via ${submission.method || 'Payment'} (TrxID: ${submission.transactionId || '—'}). Invoice marked Paid.`,
           link: `/invoices/${submission.invoiceId}`,
           actorUid: user.id,
           actorName: user.name,
@@ -98,7 +155,7 @@ export function useAdminPayments() {
       }
       toast.success(
         'Payment verified',
-        `${submission.invoiceNumber} is now marked Paid (${submission.method}).`,
+        `${invoiceLabel} is now marked Paid (${submission.method || 'Payment'}).`,
       );
     } catch (err) {
       const message = getErrorMessage(err, 'Unable to verify payment submission.');
@@ -112,6 +169,7 @@ export function useAdminPayments() {
   const handleConfirmReject = async (submission: PaymentSubmissionRecord, reason: string) => {
     if (processingId || submission.status !== 'Pending') return;
     setProcessingId(submission.id);
+    const invoiceLabel = submission.invoiceNumber || 'Invoice';
     try {
       await rejectMutation.mutateAsync({id: submission.id, reason});
       if (user && submission.clientId) {
@@ -120,14 +178,14 @@ export function useAdminPayments() {
           clientId: submission.clientId,
           projectId: submission.projectId,
           type: 'invoice',
-          title: `Payment submission rejected: ${submission.invoiceNumber}`,
+          title: `Payment submission rejected: ${invoiceLabel}`,
           body: `Reason: ${reason}`,
           link: `/invoices/${submission.invoiceId}#pay-now`,
           actorUid: user.id,
           actorName: user.name,
         });
       }
-      toast.info('Payment rejected', `Client has been notified for ${submission.invoiceNumber}.`);
+      toast.info('Payment rejected', `Client has been notified for ${invoiceLabel}.`);
     } catch (err) {
       const message = getErrorMessage(err, 'Unable to reject payment submission.');
       console.error('[AdminPaymentsPage] Reject failed:', submission.id, err);
@@ -147,7 +205,9 @@ export function useAdminPayments() {
 
   return {
     loading,
+    retrying: isFetching && !loading,
     error,
+    refetch,
     statusFilter,
     setStatusFilter,
     search,

@@ -1,5 +1,6 @@
 import {Download, Loader2, X} from 'lucide-react';
 import {useCallback, useEffect, useState} from 'react';
+import {Button} from '@/components/ui';
 import {FilePreviewBody} from '@/features/files/FilePreviewBody';
 import {useEscapeKey} from '@/hooks/useEscapeKey';
 import {useToast} from '@/hooks/useToast';
@@ -119,49 +120,53 @@ export function FilePreviewModal({file, onClose}: FilePreviewModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-overlay backdrop-blur-[6px]"
       role="dialog"
       aria-modal="true"
       aria-labelledby="file-preview-title"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-5xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
+        className="w-full max-w-[880px] bg-surface rounded-t-3xl sm:rounded-3xl border border-border shadow-lg overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4 shrink-0">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4 shrink-0">
           <div className="min-w-0">
             <h3
               id="file-preview-title"
-              className="text-sm sm:text-base font-semibold text-slate-900 dark:text-slate-100 truncate"
+              className="font-heading text-sm sm:text-base font-semibold text-foreground truncate"
             >
-              {file.name}
+              {file.name || 'Untitled file'}
             </h3>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5 tabular-nums">
-              {getFileTypeLabel(file.extension, file.mimeType)} · {formatFileSize(file.size)} ·
-              Uploaded by {file.uploadedByName} · Link valid for 60s
+            <p className="text-xs text-muted mt-0.5 num">
+              {getFileTypeLabel(file.extension ?? '', file.mimeType ?? '')} ·{' '}
+              {formatFileSize(file.size)} · Uploaded by {file.uploadedByName || 'Team member'} ·
+              Link valid for 60s
             </p>
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="sm"
               disabled={downloading}
               onClick={() => void handleDownload()}
-              className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-xs font-semibold transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+              icon={
+                downloading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                ) : (
+                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                )
+              }
             >
-              {downloading ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Download className="w-3.5 h-3.5" aria-hidden="true" />
-              )}
-              <span>{downloading ? 'Preparing...' : 'Download'}</span>
-            </button>
+              {downloading ? 'Preparing...' : 'Download'}
+            </Button>
             <button
               type="button"
               onClick={onClose}
               aria-label="Close file preview"
-              className="inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-xl text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+              className="inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-xl text-muted hover:text-foreground hover:bg-surface-muted transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
             >
               <X className="w-4 h-4" aria-hidden="true" />
             </button>

@@ -1,4 +1,4 @@
-import {CheckCircle2, Circle, Clock} from 'lucide-react';
+import {Check} from 'lucide-react';
 import {PROJECT_STATUSES} from '@/config/constants';
 import type {ProjectStatus} from '@/types/portal';
 
@@ -10,47 +10,69 @@ export function ProjectStageStepper({status}: ProjectStageStepperProps) {
   const currentIndex = PROJECT_STATUSES.indexOf(status);
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-      {PROJECT_STATUSES.map((stage, idx) => {
-        let state: 'Completed' | 'In Progress' | 'Pending' = 'Pending';
-        if (status === 'Delivered' || idx < currentIndex) {
-          state = 'Completed';
-        } else if (idx === currentIndex) {
-          state = 'In Progress';
-        }
+    <div className="relative pt-1">
+      <div
+        aria-hidden="true"
+        className="hidden sm:block absolute top-5 left-[10%] right-[10%] h-0.5 bg-border"
+      />
+      <ol className="relative grid grid-cols-2 sm:grid-cols-5 gap-3">
+        {PROJECT_STATUSES.map((stage, idx) => {
+          let state: 'Completed' | 'In Progress' | 'Pending' = 'Pending';
+          if (status === 'Delivered' || idx < currentIndex) {
+            state = 'Completed';
+          } else if (idx === currentIndex) {
+            state = 'In Progress';
+          }
 
-        return (
-          <div
-            key={stage}
-            className={`rounded-xl border p-3 flex flex-col gap-2 ${
-              state === 'Completed'
-                ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-900/60 dark:bg-emerald-950/30'
-                : state === 'In Progress'
-                  ? 'border-indigo-200 bg-indigo-50/70 dark:border-indigo-900/60 dark:bg-indigo-950/40'
-                  : 'border-slate-200 bg-slate-50 dark:border-slate-800 dark:bg-slate-950/60'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              {state === 'Completed' ? (
-                <CheckCircle2
-                  className="w-4 h-4 text-emerald-600 dark:text-emerald-400"
-                  aria-hidden="true"
-                />
-              ) : state === 'In Progress' ? (
-                <Clock className="w-4 h-4 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />
-              ) : (
-                <Circle className="w-4 h-4 text-slate-400 dark:text-slate-600" aria-hidden="true" />
-              )}
-              <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                {state}
-              </span>
-            </div>
-            <span className="text-xs font-semibold text-slate-900 dark:text-slate-100">
-              {stage}
-            </span>
-          </div>
-        );
-      })}
+          return (
+            <li
+              key={stage}
+              className="flex sm:flex-col items-center sm:text-center gap-2.5 sm:gap-2 p-2.5 sm:p-1 rounded-xl border sm:border-0 border-border bg-surface-muted/40 sm:bg-transparent"
+            >
+              <div
+                className={`relative z-10 w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold transition-colors ${
+                  state === 'Completed'
+                    ? 'bg-success text-white shadow-xs'
+                    : state === 'In Progress'
+                      ? 'bg-primary-50 text-primary-600 border-2 border-primary-600 ring-[3px] ring-ring'
+                      : 'bg-surface-muted text-subtle border border-border'
+                }`}
+              >
+                {state === 'Completed' ? (
+                  <Check className="w-4 h-4" aria-hidden="true" />
+                ) : (
+                  <span className="num">{idx + 1}</span>
+                )}
+              </div>
+
+              <div className="min-w-0">
+                <p
+                  className={`text-xs font-semibold truncate ${
+                    state === 'In Progress'
+                      ? 'text-primary-600'
+                      : state === 'Completed'
+                        ? 'text-foreground'
+                        : 'text-muted'
+                  }`}
+                >
+                  {stage}
+                </p>
+                <p
+                  className={`text-[11px] font-medium ${
+                    state === 'Completed'
+                      ? 'text-success-text'
+                      : state === 'In Progress'
+                        ? 'text-primary-600'
+                        : 'text-subtle'
+                  }`}
+                >
+                  {state}
+                </p>
+              </div>
+            </li>
+          );
+        })}
+      </ol>
     </div>
   );
 }

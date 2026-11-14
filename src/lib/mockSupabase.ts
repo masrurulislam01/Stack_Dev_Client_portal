@@ -15,17 +15,44 @@ function isoHoursAgo(hours: number): string {
   return d.toISOString();
 }
 
-function createSampleSvgDataUrl(title: string, accent = '#4f46e5'): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="800" height="480" viewBox="0 0 800 480"><rect width="800" height="480" fill="#f8fafc"/><rect x="32" y="32" width="736" height="416" rx="16" fill="#ffffff" stroke="#e2e8f0" stroke-width="2"/><rect x="32" y="32" width="736" height="56" rx="16" fill="${accent}"/><text x="64" y="68" font-family="sans-serif" font-size="20" font-weight="bold" fill="#ffffff">Stack Dev · ${title}</text><rect x="64" y="120" width="210" height="110" rx="10" fill="#eef2ff"/><rect x="295" y="120" width="210" height="110" rx="10" fill="#f1f5f9"/><rect x="526" y="120" width="210" height="110" rx="10" fill="#ecfdf5"/><rect x="64" y="256" width="672" height="152" rx="10" fill="#f8fafc" stroke="#e2e8f0"/></svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+function createSampleRasterDataUrl(): string {
+  // Generate a minimal valid 16x12 24-bit uncompressed BMP raster image (no SVG)
+  const width = 16;
+  const height = 12;
+  const rowSize = width * 3; // 48 bytes (already 4-byte aligned)
+  const pixelBytes = rowSize * height;
+  const fileSize = 54 + pixelBytes;
+  const buf = new Uint8Array(fileSize);
+  const view = new DataView(buf.buffer);
+  buf[0] = 0x42; // 'B'
+  buf[1] = 0x4d; // 'M'
+  view.setUint32(2, fileSize, true);
+  view.setUint32(10, 54, true);
+  view.setUint32(14, 40, true);
+  view.setInt32(18, width, true);
+  view.setInt32(22, height, true);
+  view.setUint16(26, 1, true);
+  view.setUint16(28, 24, true);
+  view.setUint32(34, pixelBytes, true);
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const idx = 54 + y * rowSize + x * 3;
+      const isHeader = y >= height - 3;
+      buf[idx] = isHeader ? 0xe5 : 0xfc; // B
+      buf[idx + 1] = isHeader ? 0x46 : 0xfa; // G
+      buf[idx + 2] = isHeader ? 0x4f : 0xf8; // R
+    }
+  }
+  let binary = '';
+  for (let i = 0; i < buf.length; i += 1) {
+    binary += String.fromCharCode(buf[i]);
+  }
+  return `data:image/bmp;base64,${btoa(binary)}`;
 }
 
 // In-memory storage blobs for uploaded or seeded demo files
 const memoryStorageMap = new Map<string, string>([
-  [
-    'client-1/proj-1/demo-wireframe-preview.png',
-    createSampleSvgDataUrl('Apex App Wireframe Preview', '#4f46e5'),
-  ],
+  ['client-1/proj-1/demo-wireframe-preview.png', createSampleRasterDataUrl()],
   [
     'client-1/proj-1/demo-api-spec.txt',
     `data:text/plain;charset=utf-8,${encodeURIComponent(
@@ -806,7 +833,7 @@ class MockQueryBuilder {
       const deleted: Row[] = [];
       for (const r of rows) {
         if (matchesFilters(r)) {
-          deleted.push(r);
+          deleted.push(hydrateRow(this.table, r));
         } else {
           remaining.push(r);
         }
@@ -814,6 +841,14 @@ class MockQueryBuilder {
       db[this.table] = remaining;
       if (this.table === 'messages' || this.table === 'notifications') {
         notifyRealtime(this.table);
+      }
+      if (this.expectSingle === 'single') {
+        return deleted[0]
+          ? {data: deleted[0], error: null}
+          : {data: null, error: {message: 'Record not found.'}};
+      }
+      if (this.expectSingle === 'maybeSingle') {
+        return {data: deleted[0] ?? null, error: null};
       }
       return {data: deleted, error: null};
     }
@@ -894,7 +929,10 @@ export function createMockSupabaseClient(): SupabaseClient {
         emitAuth('SIGNED_IN', session);
         return {data: {user: session.user, session}, error: null};
       },
-      async signOut() {
+      async signOut(options?: {scope?: 'global' | 'local' | 'others'}) {
+        if (options?.scope === 'others') {
+          return {error: null};
+        }
         saveSessionUid(null);
         emitAuth('SIGNED_OUT', null);
         return {error: null};

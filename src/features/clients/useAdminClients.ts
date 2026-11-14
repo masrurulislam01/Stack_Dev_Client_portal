@@ -19,6 +19,7 @@ export function useAdminClients() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [pageError, setPageError] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<ClientRecord | null>(null);
   const [deletingClient, setDeletingClient] = useState<ClientRecord | null>(null);
@@ -27,7 +28,9 @@ export function useAdminClients() {
   const {
     data: clients = [],
     isLoading: loading,
+    isFetching: fetchingClients,
     error: loadError,
+    refetch: refetchClients,
   } = useQuery({
     queryKey: queryKeys.clients.all,
     queryFn: () => listClients(),
@@ -61,7 +64,20 @@ export function useAdminClients() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => removeClient(id),
-    onSuccess: async () => {
+    onMutate: async (id: string) => {
+      await queryClient.cancelQueries({queryKey: queryKeys.clients.all});
+      const previousClients = queryClient.getQueryData<ClientRecord[]>(queryKeys.clients.all);
+      queryClient.setQueryData<ClientRecord[]>(queryKeys.clients.all, (old = []) =>
+        old.filter((client) => client.id !== id),
+      );
+      return {previousClients};
+    },
+    onError: (_err, _id, context) => {
+      if (context?.previousClients) {
+        queryClient.setQueryData(queryKeys.clients.all, context.previousClients);
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({queryKey: queryKeys.clients.all});
     },
   });
@@ -71,40 +87,36 @@ export function useAdminClients() {
     if (!q) return clients;
     return clients.filter(
       (c) =>
-        c.companyName.toLowerCase().includes(q) ||
-        c.contactName.toLowerCase().includes(q) ||
-        c.email.toLowerCase().includes(q) ||
-        c.phone.toLowerCase().includes(q),
+        (c.companyName ?? '').toLowerCase().includes(q) ||
+        (c.contactName ?? '').toLowerCase().includes(q) ||
+        (c.email ?? '').toLowerCase().includes(q) ||
+        (c.phone ?? '').toLowerCase().includes(q),
     );
   }, [clients, searchQuery]);
 
   const handleSave = async (values: ClientFormParsed) => {
     if (!isAdmin) {
-      setPageError('Only administrators can manage client records.');
-      return;
+      throw new Error('Only administrators can manage client records.');
     }
     setPageError(null);
-    try {
-      const result = await saveMutation.mutateAsync(values);
-      setIsFormOpen(false);
-      if (result.mode === 'create') {
-        setInviteInfo(
-          buildClientInviteInfo(result.record.id, result.record.contactName, result.record.email),
-        );
-      }
-    } catch (err) {
-      setPageError(getErrorMessage(err, 'Unable to save client record.'));
+    const result = await saveMutation.mutateAsync(values);
+    setIsFormOpen(false);
+    if (result.mode === 'create') {
+      setInviteInfo(
+        buildClientInviteInfo(result.record.id, result.record.contactName, result.record.email),
+      );
     }
   };
 
   const handleDeleteClient = async () => {
     if (!deletingClient || !isAdmin) return;
+    setDeleteError(null);
     setPageError(null);
     try {
       await deleteMutation.mutateAsync(deletingClient.id);
       setDeletingClient(null);
     } catch (err) {
-      setPageError(getErrorMessage(err, 'Unable to delete client.'));
+      setDeleteError(getErrorMessage(err, 'Unable to delete client.'));
     }
   };
 
@@ -114,10 +126,15 @@ export function useAdminClients() {
   return {
     filteredClients,
     loading,
+    hasLoadError: Boolean(loadError),
+    isRetrying: Boolean(loadError) && fetchingClients,
+    refetchClients: () => void refetchClients(),
     searchQuery,
     setSearchQuery,
     pageError,
     setPageError,
+    deleteError,
+    setDeleteError,
     displayedError,
     isFormOpen,
     setIsFormOpen,

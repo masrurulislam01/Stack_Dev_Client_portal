@@ -1,4 +1,5 @@
-import {X} from 'lucide-react';
+import {AlertCircle, X} from 'lucide-react';
+import {Button, Input, Select, Textarea} from '@/components/ui';
 import {INVOICE_STATUSES} from '@/config/constants';
 import {InvoiceLineItemsEditor} from '@/features/invoices/InvoiceLineItemsEditor';
 import {useInvoiceForm} from '@/features/invoices/useInvoiceForm';
@@ -48,45 +49,58 @@ export function InvoiceFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-overlay backdrop-blur-[6px] overflow-y-auto"
       role="dialog"
       aria-modal="true"
       aria-labelledby="invoice-modal-title"
     >
-      <div className="w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xl overflow-hidden my-8">
-        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-4">
-          <div>
-            <h3 id="invoice-modal-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+      <div className="w-full max-w-3xl sm:my-auto bg-surface rounded-t-3xl sm:rounded-3xl border border-border shadow-lg overflow-hidden max-h-[92vh] flex flex-col">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between gap-4 shrink-0">
+          <div className="min-w-0">
+            <h2
+              id="invoice-modal-title"
+              className="font-heading text-lg font-semibold text-foreground truncate"
+            >
               {isEditing ? `Edit Invoice ${initialInvoice?.invoiceNumber}` : 'Create Invoice'}
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 tabular-nums">
+            </h2>
+            <p className="text-xs text-muted mt-0.5 num">
               Invoice Number:{' '}
-              <span className="font-semibold text-indigo-600 dark:text-indigo-400">
+              <span className="font-mono font-semibold text-primary-600">
                 {isEditing ? initialInvoice?.invoiceNumber : nextInvoiceNumber}
               </span>
             </p>
           </div>
           <button
             type="button"
+            disabled={vm.isSubmitting}
             onClick={onClose}
             aria-label="Close modal"
-            className="p-2 rounded-xl text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl text-muted hover:text-foreground hover:bg-surface-muted disabled:opacity-50 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
           >
-            <X className="w-4 h-4" aria-hidden="true" />
+            <X className="w-5 h-5" aria-hidden="true" />
           </button>
         </div>
 
-        <form onSubmit={vm.handleFormSubmit} className="p-6 space-y-5" noValidate>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="inv-client" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                Client
-              </label>
-              <select
+        <form onSubmit={vm.handleFormSubmit} className="p-6 space-y-5 overflow-y-auto" noValidate>
+          {vm.submitError && (
+            <div
+              role="alert"
+              className="rounded-xl border border-danger/30 bg-danger-soft px-3.5 py-2.5 flex items-start gap-2 text-xs font-medium text-danger-text"
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{vm.submitError}</span>
+            </div>
+          )}
+
+          <fieldset disabled={vm.isSubmitting} className="space-y-5 disabled:opacity-80">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
                 id="inv-client"
-                disabled={Boolean(lockedClientId)}
+                label="Client"
+                disabled={Boolean(lockedClientId) || vm.isSubmitting}
+                error={vm.errors.clientId?.message}
+                className="disabled:opacity-70"
                 {...vm.register('clientId')}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 disabled:opacity-70 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
               >
                 <option value="">Select client...</option>
                 {clients.map((c) => (
@@ -94,19 +108,15 @@ export function InvoiceFormModal({
                     {c.companyName} ({c.contactName})
                   </option>
                 ))}
-              </select>
-              {vm.errors.clientId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{vm.errors.clientId.message}</p>}
-            </div>
+              </Select>
 
-            <div>
-              <label htmlFor="inv-project" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">
-                Project
-              </label>
-              <select
+              <Select
                 id="inv-project"
-                disabled={Boolean(lockedProjectId)}
+                label="Project"
+                disabled={Boolean(lockedProjectId) || vm.isSubmitting}
+                error={vm.errors.projectId?.message}
+                className="disabled:opacity-70"
                 {...vm.register('projectId')}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 disabled:opacity-70 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
               >
                 <option value="">
                   {vm.clientProjects.length === 0 ? 'No projects for this client' : 'Select project...'}
@@ -116,51 +126,70 @@ export function InvoiceFormModal({
                     {p.title}
                   </option>
                 ))}
-              </select>
-              {vm.errors.projectId && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{vm.errors.projectId.message}</p>}
+              </Select>
             </div>
-          </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div>
-              <label htmlFor="inv-issue" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Issue Date</label>
-              <input id="inv-issue" type="date" {...vm.register('issueDate')} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20" />
-              {vm.errors.issueDate && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{vm.errors.issueDate.message}</p>}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <Input
+                id="inv-issue"
+                type="date"
+                label="Issue Date"
+                error={vm.errors.issueDate?.message}
+                {...vm.register('issueDate')}
+              />
+              <Input
+                id="inv-due"
+                type="date"
+                label="Due Date"
+                error={vm.errors.dueDate?.message}
+                {...vm.register('dueDate')}
+              />
+              <div>
+                <Select id="inv-status" label="Status" {...vm.register('status')}>
+                  {INVOICE_STATUSES.map((st) => (
+                    <option key={st} value={st}>
+                      {st}
+                    </option>
+                  ))}
+                </Select>
+                <p className="mt-1.5 text-xs text-muted">
+                  Draft invoices remain hidden from clients.
+                </p>
+              </div>
             </div>
-            <div>
-              <label htmlFor="inv-due" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Due Date</label>
-              <input id="inv-due" type="date" {...vm.register('dueDate')} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20" />
-              {vm.errors.dueDate && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{vm.errors.dueDate.message}</p>}
-            </div>
-            <div>
-              <label htmlFor="inv-status" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Status</label>
-              <select id="inv-status" {...vm.register('status')} className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20">
-                {INVOICE_STATUSES.map((st) => <option key={st} value={st}>{st}</option>)}
-              </select>
-              <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500">Draft invoices remain hidden from clients.</p>
-            </div>
-          </div>
 
-          <InvoiceLineItemsEditor
-            fields={vm.fields}
-            watchedItems={vm.watchedItems}
-            errors={vm.errors}
-            register={vm.register}
-            onAdd={() => vm.append({description: '', quantity: 1, unitPrice: 0})}
-            onRemove={(idx) => vm.remove(idx)}
-          />
+            <InvoiceLineItemsEditor
+              fields={vm.fields}
+              watchedItems={vm.watchedItems}
+              errors={vm.errors}
+              register={vm.register}
+              disabled={vm.isSubmitting}
+              onAdd={() => vm.append({description: '', quantity: 1, unitPrice: 0})}
+              onRemove={(idx) => vm.remove(idx)}
+            />
 
-          <div>
-            <label htmlFor="inv-notes" className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">Notes / Payment Instructions</label>
-            <textarea id="inv-notes" rows={2} {...vm.register('notes')} placeholder="e.g. bKash Merchant / Bank transfer details or milestone billing notes..." className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 resize-y" />
-            {vm.errors.notes && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{vm.errors.notes.message}</p>}
-          </div>
+            <Textarea
+              id="inv-notes"
+              rows={2}
+              label="Notes / Payment Instructions"
+              placeholder="e.g. bKash Merchant / Bank transfer details or milestone billing notes..."
+              error={vm.errors.notes?.message}
+              {...vm.register('notes')}
+            />
+          </fieldset>
 
-          <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-            <button type="button" onClick={onClose} className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors">Cancel</button>
-            <button type="submit" disabled={vm.isSubmitting} className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors">
+          <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={vm.isSubmitting}
+              onClick={onClose}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" loading={vm.isSubmitting}>
               {vm.isSubmitting ? 'Saving...' : isEditing ? 'Save Changes' : 'Create Invoice'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

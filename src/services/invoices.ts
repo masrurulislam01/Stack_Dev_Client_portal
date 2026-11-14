@@ -1,6 +1,6 @@
 import {INVOICE_STATUSES, type InvoiceStatus} from '@/config/constants';
 import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import {assertSafeRecordId, getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
 import type {DbInvoiceLineItem, DbInvoiceStatus, InvoiceRow} from '@/types/database';
 import type {InvoiceLineItem, InvoiceRecord} from '@/types/portal';
 import {
@@ -107,7 +107,7 @@ export async function list(options: ListInvoicesOptions = {}): Promise<InvoiceRe
   if (options.projectId) {
     query = query.eq('project_id', options.projectId);
   }
-  if (options.includeDrafts === false) {
+  if (options.includeDrafts !== true) {
     query = query.neq('status', 'Draft');
   }
 
@@ -120,10 +120,11 @@ export async function list(options: ListInvoicesOptions = {}): Promise<InvoiceRe
 }
 
 export async function getById(id: string): Promise<InvoiceRecord | null> {
+  const safeId = assertSafeRecordId(id, 'invoice');
   const {data, error} = await supabase
     .from('invoices')
     .select(INVOICE_SELECT)
-    .eq('id', id)
+    .eq('id', safeId)
     .maybeSingle();
 
   if (error) {
@@ -191,10 +192,11 @@ export async function update(id: string, input: UpdateInvoiceInput): Promise<Inv
   if (valid.paymentReference !== undefined) payload.payment_reference = valid.paymentReference;
   if (valid.paidAt !== undefined) payload.paid_at = valid.paidAt;
 
+  const safeId = assertSafeRecordId(id, 'invoice');
   const {data, error} = await supabase
     .from('invoices')
     .update(payload)
-    .eq('id', id)
+    .eq('id', safeId)
     .select(INVOICE_SELECT)
     .single();
 
@@ -225,7 +227,8 @@ export async function markPaid(
 }
 
 export async function remove(id: string): Promise<void> {
-  const {error} = await supabase.from('invoices').delete().eq('id', id);
+  const safeId = assertSafeRecordId(id, 'invoice');
+  const {error} = await supabase.from('invoices').delete().eq('id', safeId);
   if (error) {
     throw new Error(getErrorMessage(error, 'Unable to delete invoice.'));
   }

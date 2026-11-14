@@ -55,8 +55,8 @@ export function usePaymentProofForm({
   const onSubmit = async (values: PaymentSubmissionFormParsed) => {
     setSubmitError(null);
     const normalizedTrx = values.transactionId.trim().toLowerCase();
-    const alreadySubmitted = existingSubmissions.some(
-      (sub) => sub.transactionId.trim().toLowerCase() === normalizedTrx,
+    const alreadySubmitted = (existingSubmissions ?? []).some(
+      (sub) => (sub.transactionId ?? '').trim().toLowerCase() === normalizedTrx,
     );
     if (alreadySubmitted) {
       setError('transactionId', {

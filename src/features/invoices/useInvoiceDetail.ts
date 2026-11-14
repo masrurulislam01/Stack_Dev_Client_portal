@@ -44,7 +44,9 @@ export function useInvoiceDetail(invoiceId: string | undefined) {
   const {
     data: rawInvoice = null,
     isLoading: loading,
+    isFetching: isRetryingInvoice,
     error: invoiceError,
+    refetch: refetchInvoice,
   } = useQuery({
     queryKey: queryKeys.invoices.detail(invoiceId ?? ''),
     queryFn: () => getInvoiceById(invoiceId ?? ''),
@@ -56,7 +58,12 @@ export function useInvoiceDetail(invoiceId: string | undefined) {
   );
   const invoice = rawInvoice && !accessDenied ? rawInvoice : null;
 
-  const {data: paymentSubmissions = []} = useQuery({
+  const {
+    data: paymentSubmissions = [],
+    error: submissionsError,
+    isFetching: isRetryingSubmissions,
+    refetch: refetchSubmissions,
+  } = useQuery({
     queryKey: queryKeys.payments.list(invoiceId),
     queryFn: () => listPaymentSubmissions({invoiceId}),
     enabled: Boolean(invoiceId && invoice),
@@ -72,7 +79,7 @@ export function useInvoiceDetail(invoiceId: string | undefined) {
     queryKey: queryKeys.projects.list(),
     queryFn: async () => {
       const list = await listProjects();
-      return [...list].sort((a, b) => a.title.localeCompare(b.title));
+      return [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
     },
     enabled: isAdmin,
   });
@@ -131,6 +138,7 @@ export function useInvoiceDetail(invoiceId: string | undefined) {
       const msg = getErrorMessage(err, 'Unable to mark invoice as paid.');
       setPaymentError(msg);
       toast.error('Update failed', msg);
+      throw err;
     }
   };
 
@@ -224,9 +232,14 @@ export function useInvoiceDetail(invoiceId: string | undefined) {
     isAdmin,
     loading,
     invoiceError,
+    isRetryingInvoice,
+    refetchInvoice,
     accessDenied,
     invoice,
     paymentSubmissions,
+    submissionsError,
+    isRetryingSubmissions,
+    refetchSubmissions,
     clients,
     projects,
     isEditOpen,

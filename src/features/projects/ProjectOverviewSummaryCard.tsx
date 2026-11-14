@@ -1,4 +1,8 @@
-import {PROJECT_STATUS_BADGE_CLASSES, PROJECT_STATUS_TEXT_CLASSES} from '@/config/constants';
+import {Badge, Card} from '@/components/ui';
+import {
+  PROJECT_STATUS_BADGE_CLASSES,
+  PROJECT_STATUS_DOT_CLASSES,
+} from '@/config/constants';
 import type {ProjectRecord} from '@/types/portal';
 import {formatDateDisplay} from '@/utils/format';
 
@@ -8,108 +12,152 @@ interface ProjectOverviewSummaryCardProps {
 }
 
 export function ProjectOverviewSummaryCard({project, variant}: ProjectOverviewSummaryCardProps) {
-  const revisionsExceeded = project.revisionsUsed > project.revisionsAllowed;
+  const progress = Math.min(100, Math.max(0, Number(project.progress) || 0));
+  const revisionsUsed = Number(project.revisionsUsed) || 0;
+  const revisionsAllowed = Number(project.revisionsAllowed) || 0;
+  const revisionsExceeded = revisionsUsed > revisionsAllowed;
+  const revisionRatio =
+    revisionsAllowed > 0 ? Math.min(100, Math.round((revisionsUsed / revisionsAllowed) * 100)) : revisionsUsed > 0 ? 100 : 0;
+  const revisionNearLimit = !revisionsExceeded && revisionsAllowed > 0 && revisionRatio >= 75;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-6">
+    <Card className="p-6 space-y-6">
       <div>
         <div className="flex items-center justify-between text-sm mb-2">
-          <span className="font-medium text-slate-700 dark:text-slate-300">Overall Progress</span>
-          <span className="font-semibold text-slate-900 dark:text-slate-100 tabular-nums">
-            {project.progress}%
-          </span>
+          <span className="font-semibold text-foreground">Overall Progress</span>
+          <span className="font-semibold text-foreground num">{progress}%</span>
         </div>
-        <div className="h-2.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+        <div className="h-2 rounded-full bg-surface-muted overflow-hidden">
           <div
             className={`h-full rounded-full transition-all ${
-              project.status === 'Delivered'
-                ? 'bg-emerald-600 dark:bg-emerald-500'
-                : 'bg-indigo-600 dark:bg-indigo-500'
+              project.status === 'Delivered' ? 'bg-success' : 'bg-gradient-brand'
             }`}
-            style={{width: `${project.progress}%`}}
+            style={{width: `${progress}%`}}
           />
         </div>
       </div>
 
       {variant === 'admin' ? (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 pt-5 border-t border-border">
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Client</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100">
-              {project.clientName}
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Client
+            </dt>
+            <dd className="mt-1.5 text-sm font-semibold text-foreground">
+              {project.clientName || 'Client'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Package</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100 capitalize">
-              {project.package}
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Package
+            </dt>
+            <dd className="mt-1.5 text-sm font-semibold text-foreground capitalize">
+              {project.package || 'custom'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Status</dt>
-            <dd
-              className={`mt-1 text-sm font-semibold ${PROJECT_STATUS_TEXT_CLASSES[project.status]}`}
-            >
-              {project.status}
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Status
+            </dt>
+            <dd className="mt-1.5">
+              <Badge
+                dot
+                dotClassName={PROJECT_STATUS_DOT_CLASSES[project.status]}
+                className={PROJECT_STATUS_BADGE_CLASSES[project.status]}
+              >
+                {project.status}
+              </Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Start Date</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Start Date
+            </dt>
+            <dd className="mt-1.5 text-sm font-medium text-foreground num">
               {formatDateDisplay(project.startDate)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Due Date</dt>
-            <dd className="mt-1 text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Due Date
+            </dt>
+            <dd className="mt-1.5 text-sm font-medium text-foreground num">
               {formatDateDisplay(project.dueDate)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Revisions</dt>
-            <dd
-              className={`mt-1 text-sm font-semibold tabular-nums ${
-                revisionsExceeded
-                  ? 'text-red-600 dark:text-red-400'
-                  : 'text-slate-900 dark:text-slate-100'
-              }`}
-            >
-              {project.revisionsUsed} used of {project.revisionsAllowed} allowed
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Revisions
+            </dt>
+            <dd className="mt-1.5 space-y-1.5">
+              <div
+                className={`text-sm font-semibold num ${
+                  revisionsExceeded
+                    ? 'text-danger-text'
+                    : revisionNearLimit
+                      ? 'text-warning-text'
+                      : 'text-foreground'
+                }`}
+              >
+                {revisionsUsed} used of {revisionsAllowed} allowed
+              </div>
+              <div className="h-1.5 w-full max-w-[180px] rounded-full bg-surface-muted overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    revisionsExceeded
+                      ? 'bg-danger'
+                      : revisionNearLimit
+                        ? 'bg-warning'
+                        : 'bg-success'
+                  }`}
+                  style={{width: `${revisionRatio}%`}}
+                />
+              </div>
             </dd>
           </div>
         </dl>
       ) : (
-        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-4 border-t border-slate-200 dark:border-slate-800">
+        <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 pt-5 border-t border-border">
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Status</dt>
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Status
+            </dt>
             <dd className="mt-1.5">
-              <span
-                className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${PROJECT_STATUS_BADGE_CLASSES[project.status]}`}
+              <Badge
+                dot
+                dotClassName={PROJECT_STATUS_DOT_CLASSES[project.status]}
+                className={PROJECT_STATUS_BADGE_CLASSES[project.status]}
               >
                 {project.status}
-              </span>
+              </Badge>
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Package</dt>
-            <dd className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize">
-              {project.package}
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Package
+            </dt>
+            <dd className="mt-1.5 text-sm font-semibold text-foreground capitalize">
+              {project.package || 'custom'}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Start Date</dt>
-            <dd className="mt-1.5 text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Start Date
+            </dt>
+            <dd className="mt-1.5 text-sm font-medium text-foreground num">
               {formatDateDisplay(project.startDate)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs font-medium text-slate-500 dark:text-slate-400">Due Date</dt>
-            <dd className="mt-1.5 text-sm font-medium text-slate-900 dark:text-slate-100 tabular-nums">
+            <dt className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
+              Due Date
+            </dt>
+            <dd className="mt-1.5 text-sm font-medium text-foreground num">
               {formatDateDisplay(project.dueDate)}
             </dd>
           </div>
         </dl>
       )}
-    </div>
+    </Card>
   );
 }

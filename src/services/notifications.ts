@@ -199,8 +199,10 @@ export function subscribeToNotifications(
 ): () => void {
   if (!userId) return () => {};
 
+  let active = true;
+  const uniqueId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const channel = supabase
-    .channel(`notifications-rt-${userId}`)
+    .channel(`notifications-rt-${userId}-${uniqueId}`)
     .on(
       'postgres_changes',
       {
@@ -209,11 +211,14 @@ export function subscribeToNotifications(
         table: 'notifications',
         filter: `user_id=eq.${userId}`,
       },
-      () => onChange(),
+      () => {
+        if (active) onChange();
+      },
     )
     .subscribe();
 
   return () => {
+    active = false;
     void supabase.removeChannel(channel);
   };
 }

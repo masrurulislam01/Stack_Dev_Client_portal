@@ -1,10 +1,12 @@
-import {MessageSquare} from 'lucide-react';
+import {MessageSquare, Paperclip} from 'lucide-react';
+import {Button, Card, ErrorAlert, Skeleton} from '@/components/ui';
 import {FilePreviewModal} from '@/features/files/FilePreviewModal';
 import {MessageBubble} from '@/features/messages/MessageBubble';
 import {MessageComposer} from '@/features/messages/MessageComposer';
 import {useProjectMessages} from '@/features/messages/useProjectMessages';
 import type {PortalUser} from '@/hooks/useAuth';
 import type {ProjectRecord} from '@/types/portal';
+import {getAvatarToneClass, getInitials} from '@/utils/avatar';
 
 interface ProjectMessagesTabProps {
   project: ProjectRecord;
@@ -20,69 +22,103 @@ export function ProjectMessagesTab({
   const chat = useProjectMessages(project, user);
   const partnerTitle =
     user.role === 'admin' ? `${project.clientName || 'Client'} · Project Chat` : 'Stack Dev Team';
+  const partnerInitialsSource = user.role === 'admin' ? project.clientName || 'Client' : 'Stack Dev';
 
   return (
-    <div
+    <Card
       onDragEnter={chat.handleDragEnter}
       onDragOver={chat.handleDragOver}
       onDragLeave={chat.handleDragLeave}
       onDrop={chat.handleDrop}
-      className={`relative bg-white dark:bg-slate-900 rounded-2xl border shadow-sm overflow-hidden flex flex-col ${
-        chat.isDragging
-          ? 'border-indigo-500 ring-2 ring-indigo-500/30'
-          : 'border-slate-200 dark:border-slate-800'
+      className={`relative overflow-hidden flex flex-col ${
+        chat.isDragging ? 'border-primary-600 ring-[3px] ring-ring' : ''
       }`}
     >
       {chat.isDragging && (
-        <div className="absolute inset-0 z-20 bg-indigo-600/10 backdrop-blur-[1px] flex items-center justify-center p-6 pointer-events-none">
-          <div className="rounded-2xl bg-white dark:bg-slate-900 border-2 border-dashed border-indigo-600 dark:border-indigo-400 px-6 py-5 text-center shadow-lg">
-            <p className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">
+        <div className="absolute inset-0 z-20 bg-primary-50/85 backdrop-blur-[2px] flex items-center justify-center p-6 pointer-events-none">
+          <div className="rounded-2xl bg-surface border-2 border-dashed border-primary-600 px-6 py-5 text-center shadow-lg">
+            <p className="text-sm font-semibold text-primary-700">
               Drop a file to attach to your message
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-xs text-muted mt-1">
               Images, PDF, ZIP, DOC/DOCX, XLS/XLSX · Max 25 MB
             </p>
           </div>
         </div>
       )}
 
-      <div className="px-5 py-3.5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-3 bg-white dark:bg-slate-900">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">
-            {partnerTitle}
-          </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{project.title}</p>
+      <div className="px-5 py-3.5 border-b border-border flex items-center justify-between gap-3 bg-surface">
+        <div className="flex items-center gap-3 min-w-0">
+          <div
+            className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarToneClass(
+              partnerInitialsSource,
+            )}`}
+            aria-hidden="true"
+          >
+            {getInitials(partnerInitialsSource)}
+          </div>
+          <div className="min-w-0">
+            <h3 className="font-heading text-sm font-semibold text-foreground truncate">
+              {partnerTitle}
+            </h3>
+            <p className="text-xs text-muted truncate">{project.title || 'Untitled Project'}</p>
+          </div>
         </div>
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/60 px-2.5 py-1 rounded-full shrink-0">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-success-text bg-success-soft border border-success/25 px-2.5 py-1 rounded-full shrink-0">
+          <span className="w-1.5 h-1.5 rounded-full bg-success" aria-hidden="true" />
           Live
         </span>
       </div>
 
       <div
-        className={`flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3 bg-slate-50/70 dark:bg-slate-950/60 ${
+        className={`flex-1 overflow-y-auto px-4 sm:px-5 py-4 space-y-3 bg-background/60 ${
           compactHeight ? 'h-[380px] sm:h-[460px]' : 'h-[420px] sm:h-[500px]'
         }`}
       >
+        {chat.loadErrorMessage && (
+          <ErrorAlert
+            message={chat.loadErrorMessage}
+            onRetry={() => void chat.refetchMessages()}
+            retrying={chat.retrying}
+          />
+        )}
+
         {chat.loading ? (
-          <div className="space-y-3 animate-pulse">
-            <div className="h-14 w-2/3 rounded-2xl bg-slate-200 dark:bg-slate-800" />
-            <div className="h-14 w-1/2 ml-auto rounded-2xl bg-indigo-200/60 dark:bg-indigo-950/60" />
-            <div className="h-16 w-3/4 rounded-2xl bg-slate-200 dark:bg-slate-800" />
+          <div className="space-y-4">
+            <div className="flex flex-col items-start space-y-1.5">
+              <Skeleton className="h-3 w-28" />
+              <Skeleton className="h-14 w-2/3 rounded-2xl" />
+            </div>
+            <div className="flex flex-col items-end space-y-1.5">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-12 w-1/2 rounded-2xl" />
+            </div>
+            <div className="flex flex-col items-start space-y-1.5">
+              <Skeleton className="h-3 w-32" />
+              <Skeleton className="h-16 w-3/4 rounded-2xl" />
+            </div>
           </div>
         ) : chat.messages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center px-4">
-            <div className="w-12 h-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3">
-              <MessageSquare className="w-6 h-6" aria-hidden="true" />
+            <div className="w-11 h-11 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center mb-3">
+              <MessageSquare className="w-5 h-5" aria-hidden="true" />
             </div>
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              No messages yet
-            </p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 max-w-xs">
+            <p className="font-heading text-sm font-semibold text-foreground">No messages yet</p>
+            <p className="mt-1 text-xs text-muted max-w-xs leading-relaxed">
               Start a conversation with{' '}
               {user.role === 'admin' ? project.clientName || 'the client' : 'your Stack Dev team'}{' '}
               or attach a file below.
             </p>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => chat.fileInputRef.current?.click()}
+              icon={<Paperclip className="w-3.5 h-3.5" aria-hidden="true" />}
+              className="mt-4"
+            >
+              Attach a file
+            </Button>
           </div>
         ) : (
           chat.messages.map((msg, index) => (
@@ -117,6 +153,6 @@ export function ProjectMessagesTab({
       />
 
       <FilePreviewModal file={chat.previewFile} onClose={() => chat.setPreviewFile(null)} />
-    </div>
+    </Card>
   );
 }

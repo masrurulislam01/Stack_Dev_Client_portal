@@ -1,7 +1,8 @@
 import {zodResolver} from '@hookform/resolvers/zod';
-import {CheckCircle2, Eye, EyeOff, Lock} from 'lucide-react';
+import {AlertCircle, CheckCircle2, Eye, EyeOff, Lock} from 'lucide-react';
 import {useState} from 'react';
 import {useForm} from 'react-hook-form';
+import {Button} from '@/components/ui';
 import {useAuth} from '@/hooks/useAuth';
 import {useLanguage} from '@/hooks/useLanguage';
 import {
@@ -42,25 +43,23 @@ export function SecuritySettingsCard() {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-6 space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0">
-          <Lock className="w-5 h-5" aria-hidden="true" />
+    <div className="bg-surface rounded-2xl border border-border card-inset p-6 space-y-5">
+      <div className="flex items-start gap-3.5">
+        <div className="w-10 h-10 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center shrink-0">
+          <Lock className="w-5 h-5" strokeWidth={1.75} aria-hidden="true" />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+          <h3 className="font-heading text-lg font-semibold text-foreground">
             {t.settings.securitySection}
           </h3>
-          <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-            {t.settings.securityHint}
-          </p>
+          <p className="text-xs text-muted mt-0.5">{t.settings.securityHint}</p>
         </div>
       </div>
 
       {passwordSuccess && (
         <div
           role="status"
-          className="rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-sm text-emerald-800 dark:text-emerald-300 flex items-center gap-2"
+          className="rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success-text flex items-center gap-2.5"
         >
           <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span>{passwordSuccess}</span>
@@ -70,9 +69,10 @@ export function SecuritySettingsCard() {
       {passwordError && (
         <div
           role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300"
+          className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger-text flex items-center gap-2.5"
         >
-          {passwordError}
+          <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <span>{passwordError}</span>
         </div>
       )}
 
@@ -80,7 +80,7 @@ export function SecuritySettingsCard() {
         <div>
           <label
             htmlFor="settings-current-pw"
-            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+            className="block text-[13px] font-semibold text-foreground mb-1.5"
           >
             {t.settings.currentPassword}
           </label>
@@ -89,14 +89,19 @@ export function SecuritySettingsCard() {
               id="settings-current-pw"
               type={showCurrentPw ? 'text' : 'password'}
               autoComplete="current-password"
+              disabled={isSubmitting}
               {...register('currentPassword')}
-              className="w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+              className={`w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border bg-surface text-sm text-foreground disabled:opacity-50 transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring ${
+                errors.currentPassword
+                  ? 'border-danger focus:border-danger'
+                  : 'border-border hover:border-border-strong focus:border-primary-600'
+              }`}
             />
             <button
               type="button"
               onClick={() => setShowCurrentPw((prev) => !prev)}
               aria-label={showCurrentPw ? 'Hide current password' : 'Show current password'}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-muted hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
             >
               {showCurrentPw ? (
                 <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -106,8 +111,9 @@ export function SecuritySettingsCard() {
             </button>
           </div>
           {errors.currentPassword && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-              {errors.currentPassword.message}
+            <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>{errors.currentPassword.message}</span>
             </p>
           )}
         </div>
@@ -116,7 +122,7 @@ export function SecuritySettingsCard() {
           <div>
             <label
               htmlFor="settings-new-pw"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+              className="block text-[13px] font-semibold text-foreground mb-1.5"
             >
               {t.settings.newPassword}
             </label>
@@ -125,14 +131,19 @@ export function SecuritySettingsCard() {
                 id="settings-new-pw"
                 type={showNewPw ? 'text' : 'password'}
                 autoComplete="new-password"
+                disabled={isSubmitting}
                 {...register('newPassword')}
-                className="w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+                className={`w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border bg-surface text-sm text-foreground disabled:opacity-50 transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring ${
+                  errors.newPassword
+                    ? 'border-danger focus:border-danger'
+                    : 'border-border hover:border-border-strong focus:border-primary-600'
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowNewPw((prev) => !prev)}
                 aria-label={showNewPw ? 'Hide new password' : 'Show new password'}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-muted hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
               >
                 {showNewPw ? (
                   <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -142,8 +153,9 @@ export function SecuritySettingsCard() {
               </button>
             </div>
             {errors.newPassword && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.newPassword.message}
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>{errors.newPassword.message}</span>
               </p>
             )}
           </div>
@@ -151,7 +163,7 @@ export function SecuritySettingsCard() {
           <div>
             <label
               htmlFor="settings-confirm-pw"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+              className="block text-[13px] font-semibold text-foreground mb-1.5"
             >
               {t.settings.confirmPassword}
             </label>
@@ -160,14 +172,19 @@ export function SecuritySettingsCard() {
                 id="settings-confirm-pw"
                 type={showConfirmPw ? 'text' : 'password'}
                 autoComplete="new-password"
+                disabled={isSubmitting}
                 {...register('confirmPassword')}
-                className="w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+                className={`w-full min-h-[44px] pl-3.5 pr-12 py-2.5 rounded-xl border bg-surface text-sm text-foreground disabled:opacity-50 transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring ${
+                  errors.confirmPassword
+                    ? 'border-danger focus:border-danger'
+                    : 'border-border hover:border-border-strong focus:border-primary-600'
+                }`}
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPw((prev) => !prev)}
                 aria-label={showConfirmPw ? 'Hide confirmed password' : 'Show confirmed password'}
-                className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center min-w-[40px] min-h-[40px] rounded-lg text-muted hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
               >
                 {showConfirmPw ? (
                   <EyeOff className="w-4 h-4" aria-hidden="true" />
@@ -177,21 +194,18 @@ export function SecuritySettingsCard() {
               </button>
             </div>
             {errors.confirmPassword && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.confirmPassword.message}
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>{errors.confirmPassword.message}</span>
               </p>
             )}
           </div>
         </div>
 
         <div className="flex justify-end pt-1">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="inline-flex items-center justify-center min-h-[44px] px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
-          >
+          <Button type="submit" loading={isSubmitting}>
             {isSubmitting ? t.settings.updatingPassword : t.settings.updatePassword}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

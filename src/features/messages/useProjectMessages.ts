@@ -35,7 +35,7 @@ import type {
   ProjectRecord,
 } from '@/types/portal';
 import {messageComposerSchema} from '@/types/schemas';
-import {triggerFileDownload, validateProjectFile} from '@/utils/fileSharing';
+import {triggerFileDownload, validateProjectFileMagicBytes} from '@/utils/fileSharing';
 import {createNotification} from '@/utils/notifications';
 
 export function useProjectMessages(project: ProjectRecord, user: PortalUser) {
@@ -59,7 +59,9 @@ export function useProjectMessages(project: ProjectRecord, user: PortalUser) {
   const {
     data: messages = [],
     isLoading: loading,
+    isFetching,
     error: loadError,
+    refetch: refetchMessages,
   } = useQuery({
     queryKey: queryKeys.messages.list({projectId: project.id}),
     queryFn: () =>
@@ -116,9 +118,9 @@ export function useProjectMessages(project: ProjectRecord, user: PortalUser) {
     }
   }, [messages.length, loading]);
 
-  const stageAttachmentFile = (file: File) => {
+  const stageAttachmentFile = async (file: File) => {
     setErrorMsg(null);
-    const validation = validateProjectFile(file);
+    const validation = await validateProjectFileMagicBytes(file);
     if (!validation.valid) {
       setErrorMsg(validation.error);
       toast.error('Invalid attachment', validation.error);
@@ -246,8 +248,8 @@ export function useProjectMessages(project: ProjectRecord, user: PortalUser) {
         clientId: project.clientId,
         projectId: project.id,
         type: 'message',
-        title: `New message on ${project.title}`,
-        body: `${user.name}: ${previewText}`,
+        title: `New message on ${project.title || 'Project'}`,
+        body: `${user.name || 'User'}: ${previewText}`,
         link: targetLink,
         actorUid: user.id,
         actorName: user.name,
@@ -290,13 +292,18 @@ export function useProjectMessages(project: ProjectRecord, user: PortalUser) {
   return {
     messages,
     loading,
+    retrying: isFetching && !loading,
+    loadErrorMessage: loadError
+      ? getErrorMessage(loadError, 'Unable to load project messages.')
+      : null,
+    refetchMessages,
     text,
     setText,
     pendingAttachment,
     setPendingAttachment,
     sending,
     uploadProgress,
-    combinedError: errorMsg || (loadError instanceof Error ? loadError.message : null),
+    combinedError: errorMsg,
     hasLocalError: Boolean(errorMsg),
     clearLocalError: () => setErrorMsg(null),
     isDragging,

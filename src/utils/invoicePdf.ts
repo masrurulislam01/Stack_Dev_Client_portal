@@ -40,7 +40,7 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.setTextColor(51, 65, 85);
-  doc.text(invoice.invoiceNumber, pageWidth - margin, y + 18, {align: 'right'});
+  doc.text(invoice.invoiceNumber || 'Invoice', pageWidth - margin, y + 18, {align: 'right'});
 
   const statusColor: [number, number, number] =
     effectiveStatus === 'Paid'
@@ -121,7 +121,8 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
 
-  for (const item of invoice.lineItems) {
+  const lineItems = Array.isArray(invoice.lineItems) ? invoice.lineItems : [];
+  for (const item of lineItems) {
     const descLines = doc.splitTextToSize(item.description || 'Item', contentWidth - 235) as string[];
     const rowHeight = Math.max(28, descLines.length * 14 + 14);
 
@@ -133,11 +134,20 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
     doc.setTextColor(15, 23, 42);
     doc.text(descLines, colDescX, y + 17);
     doc.setTextColor(51, 65, 85);
-    doc.text(String(item.quantity), colQtyX, y + 17, {align: 'right'});
-    doc.text(formatPdfBDT(item.unitPrice), colUnitX, y + 17, {align: 'right'});
+    doc.text(String(Number.isFinite(item.quantity) ? item.quantity : 1), colQtyX, y + 17, {
+      align: 'right',
+    });
+    doc.text(
+      formatPdfBDT(Number.isFinite(item.unitPrice) ? item.unitPrice : 0),
+      colUnitX,
+      y + 17,
+      {align: 'right'},
+    );
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
-    doc.text(formatPdfBDT(item.total), colTotalX, y + 17, {align: 'right'});
+    doc.text(formatPdfBDT(Number.isFinite(item.total) ? item.total : 0), colTotalX, y + 17, {
+      align: 'right',
+    });
     doc.setFont('helvetica', 'normal');
 
     y += rowHeight;
@@ -160,7 +170,12 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   doc.text('TOTAL DUE', pageWidth - margin - 206, y + 25);
   doc.setFontSize(13);
   doc.setTextColor(15, 23, 42);
-  doc.text(formatPdfBDT(invoice.amount), pageWidth - margin - 14, y + 26, {align: 'right'});
+  doc.text(
+    formatPdfBDT(Number.isFinite(invoice.amount) ? invoice.amount : 0),
+    pageWidth - margin - 14,
+    y + 26,
+    {align: 'right'},
+  );
 
   y += 64;
 

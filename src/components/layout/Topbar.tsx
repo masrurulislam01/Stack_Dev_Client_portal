@@ -1,9 +1,11 @@
 import {FolderOpen, LogOut, Moon, Sun} from 'lucide-react';
 import {NavLink} from 'react-router-dom';
+import {BrandLogo} from '@/components/layout/BrandLogo';
 import {NotificationBell} from '@/features/notifications/NotificationBell';
 import {useLanguage} from '@/hooks/useLanguage';
 import {useTheme} from '@/hooks/useTheme';
 import type {PortalUser} from '@/services/auth';
+import {getAvatarToneClass} from '@/utils/avatar';
 
 interface TopbarProps {
   user: PortalUser | null;
@@ -15,35 +17,42 @@ interface TopbarProps {
 export function Topbar({user, isAdmin, pageTitle, onLogout}: TopbarProps) {
   const {theme, toggleTheme} = useTheme();
   const {language, toggleLanguage, t} = useLanguage();
+  const avatarTone = getAvatarToneClass(user?.name || user?.email || 'SD');
 
   return (
-    <header className="print:hidden sticky top-0 z-20 h-16 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-200 dark:border-slate-800 px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4">
-      <div className="flex items-center gap-2 min-w-0">
+    <header className="print:hidden sticky top-0 z-20 h-16 bg-surface/90 backdrop-blur-md border-b border-border px-3 sm:px-6 lg:px-8 flex items-center justify-between gap-2 sm:gap-4">
+      <div className="flex items-center gap-2.5 min-w-0">
         <NavLink
           to={isAdmin ? '/admin/dashboard' : '/dashboard'}
-          className="md:hidden text-lg font-bold tracking-tight text-indigo-700 dark:text-indigo-400 whitespace-nowrap shrink-0 rounded-lg py-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+          className="md:hidden rounded-xl py-1 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
-          Stack Dev
+          <BrandLogo size="sm" />
         </NavLink>
-        <h1 className="hidden md:block text-base font-semibold text-slate-900 dark:text-slate-100 truncate">
-          {pageTitle}
-        </h1>
+        <div className="hidden md:flex items-center gap-2 min-w-0">
+          <span className="text-xs font-medium text-muted shrink-0">Stack Dev</span>
+          <span className="text-xs text-subtle" aria-hidden="true">
+            /
+          </span>
+          <h1 className="font-heading text-sm font-semibold text-foreground truncate">
+            {pageTitle}
+          </h1>
+        </div>
       </div>
 
-      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
         {isAdmin && (
           <NavLink
             to="/files"
             aria-label={t.nav.files}
             className={({isActive}) =>
-              `md:hidden inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${
+              `md:hidden inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2.5 rounded-xl text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring ${
                 isActive
-                  ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300'
-                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'text-body hover:bg-surface-muted'
               }`
             }
           >
-            <FolderOpen className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <FolderOpen className="w-[18px] h-[18px] shrink-0" strokeWidth={1.75} aria-hidden="true" />
           </NavLink>
         )}
 
@@ -52,9 +61,9 @@ export function Topbar({user, isAdmin, pageTitle, onLogout}: TopbarProps) {
           onClick={toggleLanguage}
           aria-label={t.topbar.switchLanguage}
           title={t.topbar.switchLanguage}
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] px-3 rounded-xl border border-border bg-surface text-xs font-semibold text-foreground hover:bg-surface-muted hover:border-border-strong transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
-          {language === 'en' ? 'বাংলা' : 'EN'}
+          {language === 'en' ? 'বাং' : 'EN'}
         </button>
 
         <NotificationBell />
@@ -63,34 +72,29 @@ export function Topbar({user, isAdmin, pageTitle, onLogout}: TopbarProps) {
           type="button"
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? t.topbar.switchToLight : t.topbar.switchToDark}
-          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+          className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] rounded-xl border border-border bg-surface text-body hover:text-foreground hover:bg-surface-muted hover:border-border-strong transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
           {theme === 'dark' ? (
-            <Sun className="w-4 h-4" aria-hidden="true" />
+            <Sun className="w-[18px] h-[18px]" strokeWidth={1.75} aria-hidden="true" />
           ) : (
-            <Moon className="w-4 h-4" aria-hidden="true" />
+            <Moon className="w-[18px] h-[18px]" strokeWidth={1.75} aria-hidden="true" />
           )}
         </button>
 
-        <div className="flex items-center gap-2.5 pl-1.5 sm:pl-3 border-l border-slate-200 dark:border-slate-800">
+        <div className="flex items-center gap-2.5 pl-1.5 sm:pl-3 border-l border-border">
           <div
             aria-hidden="true"
-            className="w-9 h-9 rounded-full bg-indigo-600 text-white text-xs font-semibold flex items-center justify-center shrink-0 select-none"
+            className={`w-9 h-9 rounded-full text-xs font-bold flex items-center justify-center shrink-0 select-none ${avatarTone}`}
           >
             {user?.initials ?? 'SD'}
           </div>
           <div className="hidden sm:flex flex-col min-w-0 max-w-[160px]">
-            <span className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
+            <span className="text-sm font-semibold text-foreground truncate">
               {user?.name ?? 'User'}
             </span>
-            <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
+            <span className="text-xs text-muted truncate">
               {isAdmin ? t.topbar.roleAdmin : t.topbar.roleClient}
-              {user?.clientId ? (
-                <>
-                  <span aria-hidden="true"> · </span>
-                  {user.clientId}
-                </>
-              ) : null}
+              {user?.clientId ? ` · ${user.clientId}` : ''}
             </span>
           </div>
         </div>
@@ -99,9 +103,9 @@ export function Topbar({user, isAdmin, pageTitle, onLogout}: TopbarProps) {
           type="button"
           onClick={onLogout}
           aria-label={t.topbar.logout}
-          className="inline-flex items-center justify-center gap-2 min-w-[44px] min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-red-700 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
+          className="inline-flex items-center justify-center gap-2 min-w-[44px] min-h-[44px] px-2.5 sm:px-3 py-2 rounded-xl text-sm font-medium text-body hover:text-danger-text hover:bg-danger-soft transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
-          <LogOut className="w-4 h-4 shrink-0" aria-hidden="true" />
+          <LogOut className="w-[18px] h-[18px] shrink-0" strokeWidth={1.75} aria-hidden="true" />
           <span className="hidden sm:inline">{t.topbar.logout}</span>
         </button>
       </div>

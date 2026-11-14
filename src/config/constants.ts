@@ -1,5 +1,3 @@
-export const ADMIN_EMAIL = 'ayonmasrurulislam@gmail.com';
-
 export const AGENCY_INFO = {
   name: 'Stack Dev',
   address: 'Stack Dev, Savar, Dhaka',
@@ -227,70 +225,74 @@ export const MAX_IMAGE_DIMENSION = 1024;
 export const MAX_DATA_URL_LENGTH = 340000;
 
 export const PROJECT_STATUS_TEXT_CLASSES: Record<ProjectStatus, string> = {
-  Planning: 'text-amber-700 dark:text-amber-400',
-  Design: 'text-amber-700 dark:text-amber-400',
-  Development: 'text-indigo-700 dark:text-indigo-400',
-  Review: 'text-indigo-700 dark:text-indigo-400',
-  Delivered: 'text-emerald-700 dark:text-emerald-400',
+  Planning: 'text-info-text',
+  Design: 'text-primary-600',
+  Development: 'text-warning-text',
+  Review: 'text-accent-gold',
+  Delivered: 'text-success-text',
 };
 
 export const PROJECT_STATUS_DOT_CLASSES: Record<ProjectStatus, string> = {
-  Planning: 'bg-amber-500',
-  Design: 'bg-amber-500',
-  Development: 'bg-indigo-600 dark:bg-indigo-400',
-  Review: 'bg-indigo-600 dark:bg-indigo-400',
-  Delivered: 'bg-emerald-600 dark:bg-emerald-400',
+  Planning: 'bg-info',
+  Design: 'bg-primary-600',
+  Development: 'bg-warning',
+  Review: 'bg-accent-gold',
+  Delivered: 'bg-success',
 };
 
 export const PROJECT_STATUS_BADGE_CLASSES: Record<ProjectStatus, string> = {
-  Planning:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60',
-  Design:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60',
-  Development:
-    'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-900/60',
-  Review:
-    'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-900/60',
-  Delivered:
-    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/60',
+  Planning: 'bg-info-soft text-info-text border border-info/25',
+  Design: 'bg-primary-50 text-primary-700 border border-primary-200',
+  Development: 'bg-warning-soft text-warning-text border border-warning/25',
+  Review: 'bg-accent-gold-soft text-foreground border border-accent-gold/30',
+  Delivered: 'bg-success-soft text-success-text border border-success/25',
+};
+
+export const MILESTONE_DOT_CLASSES: Record<MilestoneStatus, string> = {
+  Pending: 'bg-subtle',
+  'In Review': 'bg-warning',
+  Approved: 'bg-success',
+  'Changes Requested': 'bg-danger',
 };
 
 export const MILESTONE_BADGE_CLASSES: Record<MilestoneStatus, string> = {
-  Pending:
-    'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-  'In Review':
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60',
-  Approved:
-    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/60',
-  'Changes Requested':
-    'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900/60',
+  Pending: 'bg-surface-muted text-muted border border-border',
+  'In Review': 'bg-warning-soft text-warning-text border border-warning/25',
+  Approved: 'bg-success-soft text-success-text border border-success/25',
+  'Changes Requested': 'bg-danger-soft text-danger-text border border-danger/25',
+};
+
+export const INVOICE_STATUS_DOT_CLASSES: Record<InvoiceStatus, string> = {
+  Draft: 'bg-subtle',
+  Sent: 'bg-info',
+  Paid: 'bg-success',
+  Overdue: 'bg-danger',
 };
 
 export const INVOICE_STATUS_BADGE_CLASSES: Record<InvoiceStatus, string> = {
-  Draft:
-    'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700',
-  Sent:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60',
-  Paid:
-    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/60',
-  Overdue:
-    'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900/60',
+  Draft: 'bg-surface-muted text-muted border border-border',
+  Sent: 'bg-info-soft text-info-text border border-info/25',
+  Paid: 'bg-success-soft text-success-text border border-success/25',
+  Overdue: 'bg-danger-soft text-danger-text border border-danger/25',
 };
 
 export const INVOICE_PRINT_STATUS_BADGE_CLASSES: Record<InvoiceStatus, string> = {
-  Draft: 'bg-slate-100 text-slate-700 border-slate-200',
-  Sent: 'bg-amber-50 text-amber-700 border-amber-200',
-  Paid: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  Overdue: 'bg-red-50 text-red-700 border-red-200',
+  Draft: 'bg-surface-muted text-muted border border-border',
+  Sent: 'bg-info-soft text-info-text border border-info/30',
+  Paid: 'bg-success-soft text-success-text border border-success/30',
+  Overdue: 'bg-danger-soft text-danger-text border border-danger/30',
+};
+
+export const SUBMISSION_STATUS_DOT_CLASSES: Record<PaymentSubmissionStatus, string> = {
+  Pending: 'bg-warning',
+  Verified: 'bg-success',
+  Rejected: 'bg-danger',
 };
 
 export const SUBMISSION_STATUS_BADGE_CLASSES: Record<PaymentSubmissionStatus, string> = {
-  Pending:
-    'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-900/60',
-  Verified:
-    'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-900/60',
-  Rejected:
-    'bg-red-50 text-red-700 border-red-200 dark:bg-red-950/50 dark:text-red-300 dark:border-red-900/60',
+  Pending: 'bg-warning-soft text-warning-text border border-warning/25',
+  Verified: 'bg-success-soft text-success-text border border-success/25',
+  Rejected: 'bg-danger-soft text-danger-text border border-danger/25',
 };
 
 export const THEME_STORAGE_KEY = 'stackdev_portal_theme';

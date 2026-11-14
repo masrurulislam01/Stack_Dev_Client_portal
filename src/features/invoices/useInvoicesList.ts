@@ -31,11 +31,18 @@ export function useInvoicesList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingInvoice, setEditingInvoice] = useState<InvoiceRecord | null>(null);
   const [markingPaidInvoice, setMarkingPaidInvoice] = useState<InvoiceRecord | null>(null);
-  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [invoiceToDelete, setInvoiceToDelete] = useState<InvoiceRecord | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
-  const {data: invoices = [], isLoading: loading, error: invoicesError} = useQuery({
+  const {
+    data: invoices = [],
+    isLoading: loading,
+    isFetching: isRetryingInvoices,
+    error: invoicesError,
+    refetch: refetchInvoices,
+  } = useQuery({
     queryKey: queryKeys.invoices.list({clientId: clientFilterId}),
     queryFn: () => listInvoices({clientId: clientFilterId, includeDrafts: isAdmin}),
     enabled: Boolean(user && (isAdmin || user.clientId)),
@@ -62,7 +69,7 @@ export function useInvoicesList() {
     queryKey: queryKeys.projects.list(),
     queryFn: async () => {
       const list = await listProjects();
-      return [...list].sort((a, b) => a.title.localeCompare(b.title));
+      return [...list].sort((a, b) => (a.title ?? '').localeCompare(b.title ?? ''));
     },
     enabled: isAdmin,
   });
@@ -79,14 +86,15 @@ export function useInvoicesList() {
     let overdueCount = 0;
 
     for (const inv of invoices) {
+      const amount = Number.isFinite(inv.amount) ? inv.amount : 0;
       const effective = getEffectiveInvoiceStatus(inv);
-      if (effective === 'Paid') paidAmount += inv.amount;
+      if (effective === 'Paid') paidAmount += amount;
       else if (effective === 'Overdue') {
-        unpaidAmount += inv.amount;
-        overdueAmount += inv.amount;
+        unpaidAmount += amount;
+        overdueAmount += amount;
         overdueCount += 1;
       } else if (effective === 'Sent') {
-        unpaidAmount += inv.amount;
+        unpaidAmount += amount;
       }
     }
     return {unpaidAmount, overdueAmount, paidAmount, overdueCount};
@@ -99,9 +107,9 @@ export function useInvoicesList() {
       if (statusFilter !== 'ALL' && effective !== statusFilter) return false;
       if (!term) return true;
       return (
-        inv.invoiceNumber.toLowerCase().includes(term) ||
-        inv.clientName.toLowerCase().includes(term) ||
-        inv.projectTitle.toLowerCase().includes(term)
+        (inv.invoiceNumber ?? '').toLowerCase().includes(term) ||
+        (inv.clientName ?? '').toLowerCase().includes(term) ||
+        (inv.projectTitle ?? '').toLowerCase().includes(term)
       );
     });
   }, [invoices, search, statusFilter]);
@@ -126,19 +134,34 @@ export function useInvoicesList() {
     try {
       await markPaid({invoice, values, user});
     } catch (err) {
-      setPaymentError(getErrorMessage(err, 'Unable to mark invoice as paid.'));
+      const msg = getErrorMessage(err, 'Unable to mark invoice as paid.');
+      setPaymentError(msg);
+      throw err;
     }
   };
 
-  const handleDeleteInvoice = async (invoiceId: string) => {
-    if (!isAdmin) return;
+  const requestDeleteInvoice = (invoice: InvoiceRecord) => {
+    setDeleteError(null);
+    setInvoiceToDelete(invoice);
+  };
+
+  const cancelDeleteInvoice = () => {
+    if (deletingId) return;
+    setDeleteError(null);
+    setInvoiceToDelete(null);
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!isAdmin || !invoiceToDelete) return;
     setPaymentError(null);
-    setDeletingId(invoiceId);
+    setDeleteError(null);
+    setDeletingId(invoiceToDelete.id);
     try {
-      await deleteInvoice(invoiceId);
-      setConfirmDeleteId(null);
+      await deleteInvoice(invoiceToDelete.id);
+      setInvoiceToDelete(null);
     } catch (err) {
-      setPaymentError(getErrorMessage(err, 'Unable to delete invoice.'));
+      const msg = getErrorMessage(err, 'Unable to delete invoice.');
+      setDeleteError(msg);
     } finally {
       setDeletingId(null);
     }
@@ -157,6 +180,9 @@ export function useInvoicesList() {
     invoices,
     filteredInvoices,
     loading,
+    invoicesError,
+    isRetryingInvoices,
+    refetchInvoices,
     clients,
     projects,
     nextInvoiceNumber,
@@ -173,14 +199,16 @@ export function useInvoicesList() {
     setEditingInvoice,
     markingPaidInvoice,
     setMarkingPaidInvoice,
-    confirmDeleteId,
-    setConfirmDeleteId,
+    invoiceToDelete,
+    deleteError,
     deletingId,
     paymentError,
     setPaymentError,
     displayedError,
     handleSaveInvoice,
     handleConfirmMarkPaid,
+    requestDeleteInvoice,
+    cancelDeleteInvoice,
     handleDeleteInvoice,
   };
 }

@@ -17,22 +17,18 @@ export function EmptyState({
 }: EmptyStateProps) {
   return (
     <div
-      className={`bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm px-6 py-12 text-center space-y-3 ${className}`}
+      className={`bg-surface rounded-2xl border border-border card-inset px-6 py-12 text-center space-y-3.5 ${className}`}
     >
       {icon && (
-        <div className="w-11 h-11 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 flex items-center justify-center mx-auto">
+        <div className="w-11 h-11 rounded-xl bg-primary-50 text-primary-600 flex items-center justify-center mx-auto">
           {icon}
         </div>
       )}
-      <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
-        {title}
-      </h2>
+      <h3 className="font-heading text-lg font-semibold text-foreground">{title}</h3>
       {description && (
-        <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
-          {description}
-        </p>
+        <p className="text-sm text-muted max-w-md mx-auto leading-relaxed">{description}</p>
       )}
-      {action && <div className="pt-1">{action}</div>}
+      {action && <div className="pt-1.5">{action}</div>}
     </div>
   );
 }

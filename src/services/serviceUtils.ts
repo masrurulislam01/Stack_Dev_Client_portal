@@ -47,3 +47,13 @@ export function parseServiceInput<T>(schema: z.ZodType<T>, input: unknown): T {
   }
   return result.data;
 }
+
+const SAFE_RECORD_ID_REGEX = /^[a-zA-Z0-9_-]{1,80}$/;
+
+export function assertSafeRecordId(id: string, label = 'record'): string {
+  const trimmed = typeof id === 'string' ? id.trim() : '';
+  if (!SAFE_RECORD_ID_REGEX.test(trimmed)) {
+    throw new Error(`Invalid ${label} identifier.`);
+  }
+  return trimmed;
+}

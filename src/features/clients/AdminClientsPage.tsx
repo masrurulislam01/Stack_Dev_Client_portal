@@ -1,5 +1,5 @@
 import {Plus} from 'lucide-react';
-import {ConfirmDialog} from '@/components/ui';
+import {Button, ConfirmDialog, ErrorAlert} from '@/components/ui';
 import {ClientFormModal} from '@/features/clients/ClientFormModal';
 import {ClientInviteCard} from '@/features/clients/ClientInviteCard';
 import {ClientsTable} from '@/features/clients/ClientsTable';
@@ -13,44 +13,33 @@ export function AdminClientsPage() {
     <section className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          <h2 className="font-heading text-2xl sm:text-[30px] sm:leading-[38px] font-bold tracking-tight text-foreground">
             Clients
           </h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          <p className="mt-1 text-sm text-muted">
             Save client organizations and invite clients to set their portal password.
           </p>
         </div>
 
-        <button
-          type="button"
+        <Button
+          icon={<Plus className="w-4 h-4" aria-hidden="true" />}
           onClick={() => {
             vm.setPageError(null);
             vm.setEditingClient(null);
             vm.setIsFormOpen(true);
           }}
-          className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
         >
-          <Plus className="w-4 h-4" aria-hidden="true" />
-          <span>Invite Client</span>
-        </button>
+          Invite Client
+        </Button>
       </div>
 
       {vm.displayedError && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300 flex items-center justify-between gap-4"
-        >
-          <span>{vm.displayedError}</span>
-          {vm.pageError && (
-            <button
-              type="button"
-              onClick={() => vm.setPageError(null)}
-              className="text-xs font-medium underline shrink-0"
-            >
-              Dismiss
-            </button>
-          )}
-        </div>
+        <ErrorAlert
+          message={vm.displayedError}
+          onRetry={vm.hasLoadError && !vm.pageError ? vm.refetchClients : undefined}
+          retrying={vm.isRetrying}
+          onDismiss={vm.pageError ? () => vm.setPageError(null) : undefined}
+        />
       )}
 
       {vm.inviteInfo && (
@@ -66,6 +55,12 @@ export function AdminClientsPage() {
         loading={vm.loading}
         searchQuery={vm.searchQuery}
         onSearchChange={vm.setSearchQuery}
+        onClearSearch={() => vm.setSearchQuery('')}
+        onCreate={() => {
+          vm.setPageError(null);
+          vm.setEditingClient(null);
+          vm.setIsFormOpen(true);
+        }}
         onShowInvite={(client) =>
           vm.setInviteInfo(buildClientInviteInfo(client.id, client.contactName, client.email))
         }
@@ -74,7 +69,10 @@ export function AdminClientsPage() {
           vm.setEditingClient(client);
           vm.setIsFormOpen(true);
         }}
-        onDelete={vm.setDeletingClient}
+        onDelete={(client) => {
+          vm.setDeleteError(null);
+          vm.setDeletingClient(client);
+        }}
       />
 
       <ClientFormModal
@@ -91,8 +89,8 @@ export function AdminClientsPage() {
         message={
           <>
             Are you sure you want to delete{' '}
-            <span className="font-semibold text-slate-900 dark:text-slate-100">
-              {vm.deletingClient?.companyName}
+            <span className="font-semibold text-foreground">
+              {vm.deletingClient?.companyName || vm.deletingClient?.contactName || 'this client'}
             </span>
             ? This removes the client row and linked portal records.
           </>
@@ -100,7 +98,11 @@ export function AdminClientsPage() {
         confirmLabel="Delete"
         confirmBusyLabel="Deleting..."
         loading={vm.isDeleting}
-        onClose={() => vm.setDeletingClient(null)}
+        error={vm.deleteError}
+        onClose={() => {
+          vm.setDeleteError(null);
+          vm.setDeletingClient(null);
+        }}
         onConfirm={() => void vm.handleDeleteClient()}
       />
     </section>

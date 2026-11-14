@@ -21,7 +21,9 @@ export function useClientProjectDetail(projectId: string | undefined) {
   const {
     data: rawProject = null,
     isLoading: loadingProject,
+    isFetching: fetchingProject,
     error: projectError,
+    refetch: refetchProject,
   } = useQuery({
     queryKey: queryKeys.projects.detail(projectId ?? ''),
     queryFn: () => getProjectById(projectId ?? ''),
@@ -31,13 +33,25 @@ export function useClientProjectDetail(projectId: string | undefined) {
   const accessDenied = Boolean(rawProject && rawProject.clientId !== clientId);
   const project = rawProject && !accessDenied ? rawProject : null;
 
-  const {data: milestones = [], isLoading: loadingMilestones} = useQuery({
+  const {
+    data: milestones = [],
+    isLoading: loadingMilestones,
+    isFetching: fetchingMilestones,
+    error: milestonesError,
+    refetch: refetchMilestones,
+  } = useQuery({
     queryKey: queryKeys.milestones.list(projectId),
     queryFn: () => listMilestones({projectId}),
     enabled: Boolean(projectId && project),
   });
 
-  const {data: updates = [], isLoading: loadingUpdates} = useQuery({
+  const {
+    data: updates = [],
+    isLoading: loadingUpdates,
+    isFetching: fetchingUpdates,
+    error: updatesError,
+    refetch: refetchUpdates,
+  } = useQuery({
     queryKey: queryKeys.updates.list({projectId}),
     queryFn: () => listUpdates({projectId}),
     enabled: Boolean(projectId && project),
@@ -70,6 +84,22 @@ export function useClientProjectDetail(projectId: string | undefined) {
     if (!user || !project) return;
     setActionError(null);
     setSubmittingActionId(milestone.id);
+    const listKey = queryKeys.milestones.list(projectId);
+    await queryClient.cancelQueries({queryKey: listKey});
+    const previousMilestones = queryClient.getQueryData<MilestoneRecord[]>(listKey);
+    queryClient.setQueryData<MilestoneRecord[]>(listKey, (old = []) =>
+      old.map((m) =>
+        m.id === milestone.id
+          ? {
+              ...m,
+              status: 'Approved',
+              actionByName: user.name || 'Client',
+              actionAt: new Date().toISOString(),
+            }
+          : m,
+      ),
+    );
+
     try {
       await submitClientReview(milestone.id, 'Approved');
       await Promise.all([
@@ -89,6 +119,9 @@ export function useClientProjectDetail(projectId: string | undefined) {
         actorName: user.name,
       });
     } catch (err) {
+      if (previousMilestones) {
+        queryClient.setQueryData(listKey, previousMilestones);
+      }
       setActionError(getErrorMessage(err, 'Unable to approve milestone.'));
     } finally {
       setSubmittingActionId(null);
@@ -96,7 +129,9 @@ export function useClientProjectDetail(projectId: string | undefined) {
   };
 
   const handleRequestChanges = async (milestone: MilestoneRecord, comment: string) => {
-    if (!user || !project) return;
+    if (!user || !project) {
+      throw new Error('You must be signed in to request revisions.');
+    }
     setActionError(null);
     setSubmittingActionId(milestone.id);
     try {
@@ -117,9 +152,6 @@ export function useClientProjectDetail(projectId: string | undefined) {
         actorUid: user.id,
         actorName: user.name,
       });
-    } catch (err) {
-      setActionError(getErrorMessage(err, 'Unable to submit revision request.'));
-      throw err;
     } finally {
       setSubmittingActionId(null);
     }
@@ -133,8 +165,16 @@ export function useClientProjectDetail(projectId: string | undefined) {
     updates,
     unreadMessages,
     loadingProject,
+    isRetryingProject: Boolean(projectError) && fetchingProject,
+    refetchProject: () => void refetchProject(),
     loadingMilestones,
+    milestonesError,
+    isRetryingMilestones: Boolean(milestonesError) && fetchingMilestones,
+    refetchMilestones: () => void refetchMilestones(),
     loadingUpdates,
+    updatesError,
+    isRetryingUpdates: Boolean(updatesError) && fetchingUpdates,
+    refetchUpdates: () => void refetchUpdates(),
     projectError,
     actionError,
     setActionError,

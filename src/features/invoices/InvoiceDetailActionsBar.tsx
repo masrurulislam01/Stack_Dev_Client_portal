@@ -8,6 +8,7 @@ import {
   Receipt,
 } from 'lucide-react';
 import {Link} from 'react-router-dom';
+import {Button} from '@/components/ui';
 import type {InvoiceStatus} from '@/config/constants';
 import type {InvoiceRecord} from '@/types/portal';
 import {downloadInvoicePdf} from '@/utils/invoicePdf';
@@ -37,7 +38,7 @@ export function InvoiceDetailActionsBar({
     <div className="print:hidden flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
       <Link
         to="/invoices"
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted hover:text-primary-600 transition-colors focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring rounded"
       >
         <ArrowLeft className="w-4 h-4" aria-hidden="true" />
         <span>Back to Invoices</span>
@@ -45,66 +46,73 @@ export function InvoiceDetailActionsBar({
 
       <div className="flex flex-wrap items-center gap-2.5">
         {isAdmin && effectiveStatus !== 'Paid' && (
-          <button
+          <Button
             type="button"
+            variant="success"
+            size="sm"
             onClick={onMarkPaid}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition-colors"
+            icon={<CheckCircle2 className="w-4 h-4" aria-hidden="true" />}
           >
-            <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
-            <span>Mark Paid</span>
-          </button>
+            Mark Paid
+          </Button>
         )}
 
         {isAdmin && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={onEdit}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            icon={<Pencil className="w-4 h-4" aria-hidden="true" />}
           >
-            <Pencil className="w-4 h-4" aria-hidden="true" />
-            <span>Edit</span>
-          </button>
+            Edit
+          </Button>
         )}
 
         {!isAdmin && effectiveStatus !== 'Paid' && invoice.amount > 0 && (
-          <button
+          <Button
             type="button"
+            variant="success"
+            size="sm"
             onClick={onScrollToPayNow}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600"
+            icon={<CreditCard className="w-4 h-4" aria-hidden="true" />}
           >
-            <CreditCard className="w-4 h-4" aria-hidden="true" />
-            <span>{hasPendingReview ? 'Payment Under Review' : 'Pay Now'}</span>
-          </button>
+            {hasPendingReview ? 'Payment Under Review' : 'Pay Now'}
+          </Button>
         )}
 
         {effectiveStatus === 'Paid' && (
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="sm"
             onClick={() => onPrint('receipt')}
-            className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs sm:text-sm font-semibold hover:bg-emerald-100 dark:hover:bg-emerald-950/70 transition-colors"
+            icon={<Receipt className="w-4 h-4" aria-hidden="true" />}
+            className="border-success/30 bg-success-soft text-success-text hover:brightness-95"
           >
-            <Receipt className="w-4 h-4" aria-hidden="true" />
-            <span>Print Receipt</span>
-          </button>
+            Print Receipt
+          </Button>
         )}
 
-        <button
+        <Button
           type="button"
+          variant="secondary"
+          size="sm"
           onClick={() => onPrint('invoice')}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 text-xs sm:text-sm font-medium hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+          icon={<Printer className="w-4 h-4" aria-hidden="true" />}
         >
-          <Printer className="w-4 h-4" aria-hidden="true" />
-          <span>Print</span>
-        </button>
+          Print
+        </Button>
 
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="sm"
           onClick={() => downloadInvoicePdf(invoice)}
-          className="inline-flex items-center gap-1.5 min-h-[40px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-semibold shadow-sm transition-colors"
+          icon={<Download className="w-4 h-4" aria-hidden="true" />}
         >
-          <Download className="w-4 h-4" aria-hidden="true" />
-          <span>Download PDF</span>
-        </button>
+          Download PDF
+        </Button>
       </div>
     </div>
   );

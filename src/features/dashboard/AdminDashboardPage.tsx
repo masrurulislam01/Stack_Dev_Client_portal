@@ -1,7 +1,8 @@
 import {useQuery} from '@tanstack/react-query';
-import {ArrowRight} from 'lucide-react';
+import {ArrowRight, FileText, FolderKanban, Users} from 'lucide-react';
 import {useMemo} from 'react';
 import {Link} from 'react-router-dom';
+import {ErrorAlert} from '@/components/ui';
 import {AdminDeadlinesTable} from '@/features/dashboard/AdminDeadlinesTable';
 import {AdminKpiStrip} from '@/features/dashboard/AdminKpiStrip';
 import {useLanguage} from '@/hooks/useLanguage';
@@ -27,7 +28,9 @@ export function AdminDashboardPage() {
   const {
     data: projects = [],
     isLoading: loadingProjects,
+    isFetching: fetchingProjects,
     error: projectsError,
+    refetch: refetchProjects,
   } = useQuery({
     queryKey: queryKeys.projects.list(),
     queryFn: () => listProjects(),
@@ -36,7 +39,9 @@ export function AdminDashboardPage() {
   const {
     data: clients = [],
     isLoading: loadingClients,
+    isFetching: fetchingClients,
     error: clientsError,
+    refetch: refetchClients,
   } = useQuery({
     queryKey: queryKeys.clients.all,
     queryFn: () => listClients(),
@@ -45,7 +50,9 @@ export function AdminDashboardPage() {
   const {
     data: invoices = [],
     isLoading: loadingInvoices,
+    isFetching: fetchingInvoices,
     error: invoicesError,
+    refetch: refetchInvoices,
   } = useQuery({
     queryKey: queryKeys.invoices.list(),
     queryFn: () => listInvoices({includeDrafts: true}),
@@ -58,7 +65,7 @@ export function AdminDashboardPage() {
 
     const dueNext7Days = active
       .filter((p) => Boolean(p.dueDate) && p.dueDate >= todayStr && p.dueDate <= next7Str)
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
 
     return {
       activeCount: active.length,
@@ -73,7 +80,10 @@ export function AdminDashboardPage() {
       return effective === 'Sent' || effective === 'Overdue';
     });
     const overdueCount = unpaid.filter((inv) => getEffectiveInvoiceStatus(inv) === 'Overdue').length;
-    const totalUnpaidAmount = unpaid.reduce((sum, inv) => sum + inv.amount, 0);
+    const totalUnpaidAmount = unpaid.reduce(
+      (sum, inv) => sum + (Number.isFinite(inv.amount) ? inv.amount : 0),
+      0,
+    );
 
     return {
       unpaidCount: unpaid.length,
@@ -88,35 +98,71 @@ export function AdminDashboardPage() {
   );
 
   const dashboardError = projectsError || clientsError || invoicesError;
+  const isRetrying =
+    (Boolean(projectsError) && fetchingProjects) ||
+    (Boolean(clientsError) && fetchingClients) ||
+    (Boolean(invoicesError) && fetchingInvoices);
+
+  const handleRetry = () => {
+    if (projectsError) void refetchProjects();
+    if (clientsError) void refetchClients();
+    if (invoicesError) void refetchInvoices();
+  };
+
+  const todayFormatted = new Date().toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 
   return (
     <section className="space-y-8">
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
+      <header className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 pb-6 border-b border-border">
         <div className="min-w-0 max-w-2xl">
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100 text-balance">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted mb-1.5">
+            {todayFormatted}
+          </p>
+          <h2 className="font-heading text-2xl sm:text-[30px] sm:leading-[38px] font-bold tracking-tight text-foreground text-balance">
             {t.dashboard.adminTitle}
           </h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400">
-            {t.dashboard.adminSubtitle}
-          </p>
+          <p className="mt-1.5 text-sm leading-relaxed text-muted">{t.dashboard.adminSubtitle}</p>
         </div>
 
-        <Link
-          to="/admin/projects"
-          className="inline-flex items-center justify-center gap-2 min-h-[40px] px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-sm font-semibold transition-colors duration-150 whitespace-nowrap shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600"
-        >
-          <span>{t.dashboard.viewAllProjects}</span>
-          <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
-        </Link>
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <Link
+            to="/admin/clients"
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl border border-border-strong bg-surface text-foreground hover:bg-surface-muted text-sm font-semibold shadow-xs transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+          >
+            <Users className="w-4 h-4 text-muted" aria-hidden="true" />
+            <span>{t.nav.clients}</span>
+          </Link>
+
+          <Link
+            to="/invoices"
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl border border-border-strong bg-surface text-foreground hover:bg-surface-muted text-sm font-semibold shadow-xs transition-colors whitespace-nowrap focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+          >
+            <FileText className="w-4 h-4 text-muted" aria-hidden="true" />
+            <span>{t.nav.invoices}</span>
+          </Link>
+
+          <Link
+            to="/admin/projects"
+            className="inline-flex items-center justify-center gap-2 min-h-[44px] px-4 py-2 rounded-xl bg-gradient-brand text-white hover:brightness-110 hover:shadow-brand text-sm font-semibold transition-all whitespace-nowrap focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+          >
+            <FolderKanban className="w-4 h-4 shrink-0" aria-hidden="true" />
+            <span>{t.dashboard.viewAllProjects}</span>
+            <ArrowRight className="w-4 h-4 shrink-0" aria-hidden="true" />
+          </Link>
+        </div>
       </header>
 
       {dashboardError && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300"
-        >
-          {getErrorMessage(dashboardError, 'Unable to load dashboard overview.')}
-        </div>
+        <ErrorAlert
+          message={getErrorMessage(dashboardError, 'Unable to load dashboard overview.')}
+          onRetry={handleRetry}
+          retrying={isRetrying}
+        />
       )}
 
       <AdminKpiStrip

@@ -1,36 +1,124 @@
-import {AlertCircle, Clock, Search} from 'lucide-react';
+import {Clock, Search} from 'lucide-react';
+import {Link} from 'react-router-dom';
+import {
+  Button,
+  EmptyState,
+  ErrorAlert,
+  Skeleton,
+  TableHead,
+  TableHeaderCell,
+} from '@/components/ui';
 import {PaymentsMobileList} from '@/features/payments/PaymentsMobileList';
 import {PaymentsTable} from '@/features/payments/PaymentsTable';
 import {RejectPaymentModal} from '@/features/payments/RejectPaymentModal';
 import {useAdminPayments} from '@/features/payments/useAdminPayments';
 import {getErrorMessage} from '@/services/serviceUtils';
 
+function PaymentsSkeleton() {
+  return (
+    <div>
+      <div className="hidden lg:block overflow-x-auto">
+        <table className="w-full text-left border-collapse">
+          <TableHead>
+            <TableHeaderCell>Invoice</TableHeaderCell>
+            <TableHeaderCell className="px-4">Client</TableHeaderCell>
+            <TableHeaderCell className="px-4">Method</TableHeaderCell>
+            <TableHeaderCell className="px-4">Sender Number</TableHeaderCell>
+            <TableHeaderCell className="px-4">TrxID</TableHeaderCell>
+            <TableHeaderCell className="px-4 text-right">Amount</TableHeaderCell>
+            <TableHeaderCell className="px-4">Status</TableHeaderCell>
+            <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+          </TableHead>
+          <tbody className="divide-y divide-border">
+            {[1, 2, 3, 4].map((row) => (
+              <tr key={row}>
+                <td className="py-3.5 px-6 space-y-1.5">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-3 w-28" />
+                </td>
+                <td className="py-3.5 px-4 space-y-1.5">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </td>
+                <td className="py-3.5 px-4">
+                  <Skeleton className="h-4 w-14" />
+                </td>
+                <td className="py-3.5 px-4">
+                  <Skeleton className="h-3.5 w-24" />
+                </td>
+                <td className="py-3.5 px-4">
+                  <Skeleton className="h-3.5 w-24" />
+                </td>
+                <td className="py-3.5 px-4 text-right">
+                  <Skeleton className="h-4 w-20 ml-auto" />
+                </td>
+                <td className="py-3.5 px-4">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </td>
+                <td className="py-3.5 px-6 text-right">
+                  <div className="inline-flex items-center gap-2">
+                    <Skeleton className="h-9 w-20 rounded-xl" />
+                    <Skeleton className="h-9 w-16 rounded-xl" />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <ul className="lg:hidden divide-y divide-border">
+        {[1, 2, 3].map((item) => (
+          <li key={item} className="p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1.5">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-3 w-36" />
+              </div>
+              <Skeleton className="h-5 w-16 rounded-full" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+              <Skeleton className="h-8 w-full" />
+            </div>
+            <div className="flex items-center gap-2 pt-1">
+              <Skeleton className="h-11 flex-1 rounded-xl" />
+              <Skeleton className="h-11 flex-1 rounded-xl" />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 export function AdminPaymentsPage() {
   const vm = useAdminPayments();
+  const hasFilters = Boolean(vm.search.trim()) || vm.statusFilter !== 'ALL';
 
   return (
-    <section className="space-y-6">
+    <section className="space-y-6 page-enter">
       <div>
-        <h2 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+        <h1 className="font-heading text-2xl sm:text-[30px] sm:leading-[38px] font-bold tracking-tight text-foreground">
           Payments to Verify
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        </h1>
+        <p className="text-sm text-muted mt-1">
           Review client bKash, Nagad, and Bank transaction submissions before marking invoices Paid.
         </p>
       </div>
 
       {vm.error && (
-        <div
-          role="alert"
-          className="rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 flex items-start gap-2.5 text-sm text-red-700 dark:text-red-300"
-        >
-          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
-          <span>{getErrorMessage(vm.error, 'Unable to load payment submissions.')}</span>
-        </div>
+        <ErrorAlert
+          message={getErrorMessage(vm.error, 'Unable to load payment submissions.')}
+          onRetry={() => void vm.refetch()}
+          retrying={vm.retrying}
+        />
       )}
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800/80">
+        <div className="inline-flex flex-wrap items-center gap-1 p-1 rounded-xl bg-surface-muted border border-border">
           {vm.filterTabs.map((tab) => {
             const active = vm.statusFilter === tab.key;
             return (
@@ -38,10 +126,10 @@ export function AdminPaymentsPage() {
                 key={tab.key}
                 type="button"
                 onClick={() => vm.setStatusFilter(tab.key)}
-                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 ${
+                className={`min-h-[36px] px-3 py-1.5 rounded-lg text-xs font-semibold transition-all whitespace-nowrap num cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring ${
                   active
-                    ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs'
-                    : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white'
+                    ? 'bg-surface text-foreground shadow-xs'
+                    : 'text-muted hover:text-foreground'
                 }`}
               >
                 {tab.label} ({tab.count})
@@ -52,7 +140,7 @@ export function AdminPaymentsPage() {
 
         <div className="relative w-full sm:w-72">
           <Search
-            className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-subtle absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <input
@@ -60,52 +148,80 @@ export function AdminPaymentsPage() {
             value={vm.search}
             onChange={(e) => vm.setSearch(e.target.value)}
             placeholder="Search TrxID, client, invoice..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
+            className="w-full min-h-[44px] pl-10 pr-4 py-2 rounded-xl border border-border hover:border-border-strong bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:border-primary-600 focus:ring-[3px] focus:ring-ring"
           />
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        {vm.loading ? (
-          <div className="p-6 space-y-3 animate-pulse">
-            {[1, 2, 3].map((row) => (
-              <div key={row} className="h-14 rounded-xl bg-slate-100 dark:bg-slate-800" />
-            ))}
-          </div>
-        ) : vm.filtered.length === 0 ? (
-          <div className="p-12 text-center">
-            <Clock
-              className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3"
-              aria-hidden="true"
-            />
-            <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-              {vm.statusFilter === 'Pending'
-                ? 'No pending payments to verify'
-                : 'No matching payment submissions'}
-            </p>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              {vm.statusFilter === 'Pending'
-                ? 'When clients submit bKash, Nagad, or Bank transaction details, they will appear here.'
-                : 'Try changing the status filter or search query.'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <PaymentsTable
-              submissions={vm.filtered}
-              processingId={vm.processingId}
-              onVerify={(sub) => void vm.handleVerify(sub)}
-              onReject={vm.setRejectTarget}
-            />
-            <PaymentsMobileList
-              submissions={vm.filtered}
-              processingId={vm.processingId}
-              onVerify={(sub) => void vm.handleVerify(sub)}
-              onReject={vm.setRejectTarget}
-            />
-          </>
-        )}
-      </div>
+      {vm.loading ? (
+        <div className="bg-surface rounded-2xl border border-border card-inset overflow-hidden">
+          <PaymentsSkeleton />
+        </div>
+      ) : vm.filtered.length === 0 ? (
+        <EmptyState
+          icon={<Clock className="w-5 h-5" aria-hidden="true" />}
+          title={
+            vm.statusFilter === 'Pending' && !vm.search.trim()
+              ? 'No pending payments to verify'
+              : 'No matching payment submissions'
+          }
+          description={
+            vm.statusFilter === 'Pending' && !vm.search.trim()
+              ? 'When clients submit bKash, Nagad, or Bank transaction details, they will appear here.'
+              : 'Try changing the status filter or clearing your search query.'
+          }
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-2.5">
+              {vm.error && (
+                <Button
+                  type="button"
+                  size="sm"
+                  loading={vm.retrying}
+                  onClick={() => void vm.refetch()}
+                >
+                  {vm.retrying ? 'Retrying...' : 'Retry'}
+                </Button>
+              )}
+              {hasFilters && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    vm.setSearch('');
+                    vm.setStatusFilter('ALL');
+                  }}
+                >
+                  {vm.statusFilter === 'Pending' && !vm.search.trim()
+                    ? 'View all submissions'
+                    : 'Reset filters'}
+                </Button>
+              )}
+              <Link
+                to="/invoices"
+                className="inline-flex items-center justify-center min-h-[36px] px-3.5 py-1.5 rounded-xl bg-gradient-brand text-white text-xs font-semibold hover:brightness-110 hover:shadow-brand transition-all focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
+              >
+                Open Invoices
+              </Link>
+            </div>
+          }
+        />
+      ) : (
+        <div className="bg-surface rounded-2xl border border-border card-inset overflow-hidden">
+          <PaymentsTable
+            submissions={vm.filtered}
+            processingId={vm.processingId}
+            onVerify={(sub) => void vm.handleVerify(sub)}
+            onReject={vm.setRejectTarget}
+          />
+          <PaymentsMobileList
+            submissions={vm.filtered}
+            processingId={vm.processingId}
+            onVerify={(sub) => void vm.handleVerify(sub)}
+            onReject={vm.setRejectTarget}
+          />
+        </div>
+      )}
 
       <RejectPaymentModal
         submission={vm.rejectTarget}

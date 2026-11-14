@@ -1,7 +1,9 @@
 import {zodResolver} from '@hookform/resolvers/zod';
-import {useEffect} from 'react';
+import {AlertCircle} from 'lucide-react';
+import {useEffect, useState} from 'react';
 import {useForm} from 'react-hook-form';
-import {Modal} from '@/components/ui';
+import {Button, Modal} from '@/components/ui';
+import {getErrorMessage} from '@/services/serviceUtils';
 import {
   clientFormSchema,
   type ClientFormParsed,
@@ -22,6 +24,7 @@ export function ClientFormModal({
   onClose,
   onSave,
 }: ClientFormModalProps) {
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -34,13 +37,14 @@ export function ClientFormModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    setSubmitError(null);
     if (editingClient) {
       reset({
-        companyName: editingClient.companyName,
-        contactName: editingClient.contactName,
-        phone: editingClient.phone,
-        email: editingClient.email,
-        notes: editingClient.notes,
+        companyName: editingClient.companyName ?? '',
+        contactName: editingClient.contactName ?? '',
+        phone: editingClient.phone ?? '',
+        email: editingClient.email ?? '',
+        notes: editingClient.notes ?? '',
       });
     } else {
       reset({companyName: '', contactName: '', phone: '', email: '', notes: ''});
@@ -48,7 +52,12 @@ export function ClientFormModal({
   }, [isOpen, editingClient, reset]);
 
   const onSubmit = async (values: ClientFormParsed) => {
-    await onSave(values);
+    setSubmitError(null);
+    try {
+      await onSave(values);
+    } catch (err) {
+      setSubmitError(getErrorMessage(err, 'Unable to save client record.'));
+    }
   };
 
   return (
@@ -57,139 +66,162 @@ export function ClientFormModal({
       onClose={onClose}
       title={editingClient ? 'Edit Client' : 'Invite Client'}
       titleId="client-modal-title"
-      maxWidthClass="max-w-lg"
+      maxWidthClass="max-w-[520px]"
       disableClose={isSubmitting}
     >
       <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4" noValidate>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="c-contact"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Client Name
-            </label>
-            <input
-              id="c-contact"
-              type="text"
-              {...register('contactName')}
-              placeholder="e.g. Tariq Hasan"
-              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
-            />
-            {errors.contactName && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.contactName.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="c-email"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Email Address
-            </label>
-            <input
-              id="c-email"
-              type="email"
-              {...register('email')}
-              placeholder="client@company.com"
-              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label
-              htmlFor="c-company"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Company Name <span className="text-xs font-normal text-slate-400">(optional)</span>
-            </label>
-            <input
-              id="c-company"
-              type="text"
-              {...register('companyName')}
-              placeholder="Defaults to client name"
-              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
-            />
-            {errors.companyName && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                {errors.companyName.message}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label
-              htmlFor="c-phone"
-              className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
-            >
-              Phone <span className="text-xs font-normal text-slate-400">(optional)</span>
-            </label>
-            <input
-              id="c-phone"
-              type="tel"
-              {...register('phone')}
-              placeholder="+880 1711-000000"
-              className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20"
-            />
-            {errors.phone && (
-              <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.phone.message}</p>
-            )}
-          </div>
-        </div>
-
-        <div>
-          <label
-            htmlFor="c-notes"
-            className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5"
+        {submitError && (
+          <div
+            role="alert"
+            className="rounded-xl border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger-text flex items-start gap-2.5"
           >
-            Notes <span className="text-xs font-normal text-slate-400">(optional)</span>
-          </label>
-          <textarea
-            id="c-notes"
-            rows={2}
-            {...register('notes')}
-            placeholder="Billing preferences or internal notes..."
-            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 resize-y"
-          />
-          {errors.notes && (
-            <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.notes.message}</p>
-          )}
-        </div>
-
-        {!editingClient && (
-          <p className="text-xs text-slate-600 dark:text-slate-400 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 px-3.5 py-2.5">
-            Saving creates the client record and generates a copyable invite message telling the
-            client to use <strong>Forgot password?</strong> on the portal login page.
-          </p>
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{submitError}</span>
+          </div>
         )}
+        <fieldset disabled={isSubmitting} className="space-y-4 disabled:opacity-75">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label
+                htmlFor="c-contact"
+                className="block text-[13px] font-semibold text-foreground mb-1.5"
+              >
+                Client Name
+              </label>
+              <input
+                id="c-contact"
+                type="text"
+                {...register('contactName')}
+                placeholder="e.g. Tariq Hasan"
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring ${
+                  errors.contactName
+                    ? 'border-danger focus:border-danger'
+                    : 'border-border hover:border-border-strong focus:border-primary-600'
+                }`}
+              />
+              {errors.contactName && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{errors.contactName.message}</span>
+                </p>
+              )}
+            </div>
 
-        <div className="pt-4 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="min-h-[44px] px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-sm font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-          >
+            <div>
+              <label
+                htmlFor="c-email"
+                className="block text-[13px] font-semibold text-foreground mb-1.5"
+              >
+                Email Address
+              </label>
+              <input
+                id="c-email"
+                type="email"
+                {...register('email')}
+                placeholder="client@company.com"
+                className={`w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:ring-[3px] focus:ring-ring ${
+                  errors.email
+                    ? 'border-danger focus:border-danger'
+                    : 'border-border hover:border-border-strong focus:border-primary-600'
+                }`}
+              />
+              {errors.email && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{errors.email.message}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label
+                htmlFor="c-company"
+                className="block text-[13px] font-semibold text-foreground mb-1.5"
+              >
+                Company Name <span className="text-xs font-normal text-subtle">(optional)</span>
+              </label>
+              <input
+                id="c-company"
+                type="text"
+                {...register('companyName')}
+                placeholder="Defaults to client name"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-border hover:border-border-strong bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:border-primary-600 focus:ring-[3px] focus:ring-ring"
+              />
+              {errors.companyName && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{errors.companyName.message}</span>
+                </p>
+              )}
+            </div>
+
+            <div>
+              <label
+                htmlFor="c-phone"
+                className="block text-[13px] font-semibold text-foreground mb-1.5"
+              >
+                Phone <span className="text-xs font-normal text-subtle">(optional)</span>
+              </label>
+              <input
+                id="c-phone"
+                type="tel"
+                {...register('phone')}
+                placeholder="+880 1711-000000"
+                className="w-full min-h-[44px] px-3.5 py-2.5 rounded-xl border border-border hover:border-border-strong bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:border-primary-600 focus:ring-[3px] focus:ring-ring"
+              />
+              {errors.phone && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>{errors.phone.message}</span>
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="c-notes"
+              className="block text-[13px] font-semibold text-foreground mb-1.5"
+            >
+              Notes <span className="text-xs font-normal text-subtle">(optional)</span>
+            </label>
+            <textarea
+              id="c-notes"
+              rows={2}
+              {...register('notes')}
+              placeholder="Billing preferences or internal notes..."
+              className="w-full px-3.5 py-2.5 rounded-xl border border-border hover:border-border-strong bg-surface text-sm text-foreground placeholder:text-subtle transition-colors focus:outline-none focus:border-primary-600 focus:ring-[3px] focus:ring-ring resize-y"
+            />
+            {errors.notes && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-danger-text">
+                <AlertCircle className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                <span>{errors.notes.message}</span>
+              </p>
+            )}
+          </div>
+
+          {!editingClient && (
+            <p className="text-xs text-muted rounded-xl bg-surface-muted border border-border px-3.5 py-2.5 leading-relaxed">
+              Saving creates the client record and generates a copyable invite message telling the
+              client to use <strong className="text-foreground">Forgot password?</strong> on the
+              portal login page.
+            </p>
+          )}
+        </fieldset>
+
+        <div className="pt-4 border-t border-border flex items-center justify-end gap-3">
+          <Button variant="outline" disabled={isSubmitting} onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className="min-h-[44px] px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold shadow-sm transition-colors"
-          >
+          </Button>
+          <Button type="submit" loading={isSubmitting}>
             {isSubmitting
               ? 'Saving...'
               : editingClient
                 ? 'Save Changes'
                 : 'Save & Generate Invite'}
-          </button>
+          </Button>
         </div>
       </form>
     </Modal>

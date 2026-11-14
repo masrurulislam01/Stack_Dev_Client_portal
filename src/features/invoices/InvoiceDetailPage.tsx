@@ -1,5 +1,6 @@
-import {AlertCircle, ArrowLeft, CheckCircle2, X} from 'lucide-react';
+import {ArrowLeft, CheckCircle2, RefreshCw, X} from 'lucide-react';
 import {Link, useParams} from 'react-router-dom';
+import {Button, Card, ErrorAlert} from '@/components/ui';
 import {InvoiceDetailActionsBar} from '@/features/invoices/InvoiceDetailActionsBar';
 import {InvoiceFormModal} from '@/features/invoices/InvoiceFormModal';
 import {InvoicePaymentHistory} from '@/features/invoices/InvoicePaymentHistory';
@@ -18,20 +19,55 @@ export function InvoiceDetailPage() {
 
   if (detail.loading) {
     return (
-      <div className="space-y-4 animate-pulse max-w-4xl mx-auto">
-        <div className="h-8 w-44 rounded-xl bg-slate-200 dark:bg-slate-800" />
-        <div className="h-[540px] rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800" />
+      <div className="space-y-6 max-w-4xl mx-auto">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="h-5 w-32 rounded-lg skeleton-shimmer" />
+          <div className="flex items-center gap-2">
+            <div className="h-10 w-28 rounded-xl skeleton-shimmer" />
+            <div className="h-10 w-24 rounded-xl skeleton-shimmer" />
+          </div>
+        </div>
+        <Card className="overflow-hidden">
+          <div className="h-2 skeleton-shimmer" />
+          <div className="p-6 sm:p-10 space-y-8">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6 pb-8 border-b border-border">
+              <div className="space-y-2">
+                <div className="h-7 w-40 rounded skeleton-shimmer" />
+                <div className="h-4 w-56 rounded skeleton-shimmer" />
+                <div className="h-4 w-36 rounded skeleton-shimmer" />
+              </div>
+              <div className="space-y-2 sm:text-right">
+                <div className="h-4 w-16 rounded skeleton-shimmer sm:ml-auto" />
+                <div className="h-6 w-28 rounded skeleton-shimmer sm:ml-auto" />
+                <div className="h-5 w-20 rounded-full skeleton-shimmer sm:ml-auto" />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <div className="h-3.5 w-16 rounded skeleton-shimmer" />
+                <div className="h-5 w-44 rounded skeleton-shimmer" />
+                <div className="h-4 w-52 rounded skeleton-shimmer" />
+              </div>
+              <div className="space-y-2 sm:text-right">
+                <div className="h-4 w-40 rounded skeleton-shimmer sm:ml-auto" />
+                <div className="h-4 w-40 rounded skeleton-shimmer sm:ml-auto" />
+              </div>
+            </div>
+            <div className="h-36 rounded-xl skeleton-shimmer" />
+            <div className="flex justify-end">
+              <div className="h-14 w-full sm:w-72 rounded-xl skeleton-shimmer" />
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
 
   if (!detail.invoice || detail.accessDenied) {
     return (
-      <div className="max-w-xl mx-auto bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-12 text-center space-y-4">
-        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-          Invoice unavailable
-        </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+      <Card className="max-w-xl mx-auto p-10 sm:p-12 text-center space-y-4">
+        <h2 className="font-heading text-lg font-semibold text-foreground">Invoice unavailable</h2>
+        <p className="text-sm text-muted">
           {detail.invoiceError
             ? getErrorMessage(
                 detail.invoiceError,
@@ -39,19 +75,32 @@ export function InvoiceDetailPage() {
               )
             : 'We could not find this invoice, or it has not been published to your account yet.'}
         </p>
-        <Link
-          to="/invoices"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700"
-        >
-          <ArrowLeft className="w-4 h-4" aria-hidden="true" />
-          <span>Back to Invoices</span>
-        </Link>
-      </div>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          {detail.invoiceError && (
+            <Button
+              variant="secondary"
+              onClick={() => void detail.refetchInvoice()}
+              loading={detail.isRetryingInvoice}
+              icon={<RefreshCw className="w-4 h-4" aria-hidden="true" />}
+            >
+              Retry
+            </Button>
+          )}
+          <Link
+            to="/invoices"
+            className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-xl bg-gradient-brand text-white text-sm font-semibold hover:brightness-110 transition-all"
+          >
+            <ArrowLeft className="w-4 h-4" aria-hidden="true" />
+            <span>Back to Invoices</span>
+          </Link>
+        </div>
+      </Card>
     );
   }
 
   const {invoice} = detail;
   const effectiveStatus = getEffectiveInvoiceStatus(invoice);
+  const amount = Number.isFinite(invoice.amount) ? invoice.amount : 0;
   const pendingSubmissions = detail.paymentSubmissions.filter((s) => s.status === 'Pending');
   const hasPendingReview = effectiveStatus !== 'Paid' && pendingSubmissions.length > 0;
   const verifiedSubmission = detail.paymentSubmissions.find((s) => s.status === 'Verified');
@@ -61,7 +110,7 @@ export function InvoiceDetailPage() {
   };
 
   return (
-    <section className="max-w-4xl mx-auto space-y-6">
+    <section className="max-w-4xl mx-auto space-y-6 page-enter">
       <InvoiceDetailActionsBar
         invoice={invoice}
         isAdmin={detail.isAdmin}
@@ -76,17 +125,17 @@ export function InvoiceDetailPage() {
       {detail.paymentSuccessMessage && (
         <div
           role="status"
-          className="print:hidden flex items-start justify-between gap-3 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-3 text-sm text-emerald-700 dark:text-emerald-300"
+          className="print:hidden flex items-start justify-between gap-3 rounded-xl border border-success/30 bg-success-soft px-4 py-3 text-sm text-success-text"
         >
           <div className="flex items-start gap-2.5">
-            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
+            <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0 text-success" aria-hidden="true" />
             <span>{detail.paymentSuccessMessage}</span>
           </div>
           <button
             type="button"
             onClick={() => detail.setPaymentSuccessMessage(null)}
             aria-label="Dismiss payment confirmation"
-            className="p-0.5 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+            className="p-0.5 rounded-lg hover:bg-success/15 cursor-pointer"
           >
             <X className="w-4 h-4" aria-hidden="true" />
           </button>
@@ -94,22 +143,24 @@ export function InvoiceDetailPage() {
       )}
 
       {detail.paymentError && (
-        <div
-          role="alert"
-          className="print:hidden flex items-start justify-between gap-3 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/40 px-4 py-3 text-sm text-red-700 dark:text-red-300"
-        >
-          <div className="flex items-start gap-2.5">
-            <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" aria-hidden="true" />
-            <span>{detail.paymentError}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => detail.setPaymentError(null)}
-            aria-label="Dismiss payment error"
-            className="p-0.5 rounded-lg hover:bg-red-100 dark:hover:bg-red-900/40"
-          >
-            <X className="w-4 h-4" aria-hidden="true" />
-          </button>
+        <div className="print:hidden">
+          <ErrorAlert
+            message={detail.paymentError}
+            onDismiss={() => detail.setPaymentError(null)}
+          />
+        </div>
+      )}
+
+      {detail.submissionsError && (
+        <div className="print:hidden">
+          <ErrorAlert
+            message={getErrorMessage(
+              detail.submissionsError,
+              'Unable to load payment submissions for this invoice.',
+            )}
+            onRetry={() => void detail.refetchSubmissions()}
+            retrying={detail.isRetryingSubmissions}
+          />
         </div>
       )}
 
@@ -120,7 +171,7 @@ export function InvoiceDetailPage() {
         hiddenWhenPrintingReceipt={detail.printMode === 'receipt'}
       />
 
-      {!detail.isAdmin && effectiveStatus !== 'Paid' && invoice.amount > 0 && (
+      {!detail.isAdmin && effectiveStatus !== 'Paid' && amount > 0 && (
         <PayNowPanel
           invoice={invoice}
           existingSubmissions={detail.paymentSubmissions}
@@ -157,7 +208,7 @@ export function InvoiceDetailPage() {
             onSave={detail.handleSaveEdit}
             clients={detail.clients}
             projects={detail.projects}
-            nextInvoiceNumber={invoice.invoiceNumber}
+            nextInvoiceNumber={invoice.invoiceNumber || 'SD-INV-001'}
             initialInvoice={invoice}
           />
           <MarkPaidModal

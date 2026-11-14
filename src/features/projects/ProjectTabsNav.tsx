@@ -22,7 +22,7 @@ export function ProjectTabsNav({
   onSelectTab,
 }: ProjectTabsNavProps) {
   return (
-    <div className="border-b border-slate-200 dark:border-slate-800 overflow-x-auto">
+    <div className="border-b border-border overflow-x-auto">
       <nav aria-label="Project sections" className="flex items-center gap-1 min-w-max">
         {TABS.map((tab) => {
           const Icon = tab.icon;
@@ -32,16 +32,17 @@ export function ProjectTabsNav({
               key={tab.id}
               type="button"
               onClick={() => onSelectTab(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+              aria-current={isActive ? 'page' : undefined}
+              className={`inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors duration-200 cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring ${
                 isActive
-                  ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400'
-                  : 'border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  ? 'border-primary-600 text-primary-600'
+                  : 'border-transparent text-muted hover:text-foreground hover:border-border-strong'
               }`}
             >
               <Icon className="w-4 h-4 shrink-0" aria-hidden="true" />
               <span>{tab.label}</span>
               {tab.id === 'messages' && unreadMessages > 0 && (
-                <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-indigo-600 text-white text-[10px] font-semibold tabular-nums">
+                <span className="ml-0.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 rounded-full bg-primary-600 text-white text-[10px] font-semibold num">
                   {unreadMessages > 99 ? '99+' : unreadMessages}
                 </span>
               )}

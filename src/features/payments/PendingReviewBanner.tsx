@@ -16,19 +16,14 @@ export function PendingReviewBanner({
   return (
     <div
       role="status"
-      className="rounded-xl border border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/40 p-4 space-y-3"
+      className="rounded-xl border border-warning/30 bg-warning-soft p-4 space-y-3"
     >
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-start gap-3">
-          <Clock
-            className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5"
-            aria-hidden="true"
-          />
+          <Clock className="w-5 h-5 text-warning-text shrink-0 mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
-            <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">
-              Payment under review
-            </p>
-            <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+            <p className="text-sm font-semibold text-foreground">Payment under review</p>
+            <p className="text-xs text-warning-text leading-relaxed">
               We have received your payment details and notified Stack Dev. Your invoice status will update to Paid once verified.
             </p>
           </div>
@@ -37,23 +32,24 @@ export function PendingReviewBanner({
         <button
           type="button"
           onClick={onToggleExtraForm}
-          className="inline-flex items-center justify-center min-h-[36px] px-3 py-1.5 rounded-lg border border-amber-300 dark:border-amber-800 bg-white dark:bg-slate-900 text-xs font-medium text-amber-800 dark:text-amber-200 hover:bg-amber-100/60 dark:hover:bg-amber-950/60 transition-colors whitespace-nowrap shrink-0"
+          className="inline-flex items-center justify-center min-h-[38px] px-3.5 py-1.5 rounded-xl border border-warning/30 bg-surface text-xs font-semibold text-warning-text hover:bg-surface-muted transition-colors whitespace-nowrap shrink-0 cursor-pointer focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring"
         >
           {showExtraForm ? 'Hide payment form' : 'Submit another TrxID'}
         </button>
       </div>
 
-      <ul className="divide-y divide-amber-200/70 dark:divide-amber-900/40 border-t border-amber-200/70 dark:border-amber-900/40 pt-2">
+      <ul className="divide-y divide-warning/20 border-t border-warning/20 pt-2">
         {pendingSubmissions.map((sub) => (
           <li
             key={sub.id}
-            className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-amber-900 dark:text-amber-200"
+            className="py-2 flex flex-wrap items-center justify-between gap-2 text-xs text-foreground"
           >
-            <span className="font-medium tabular-nums">
+            <span className="font-medium num">
               {sub.method} · {formatBDT(sub.amountBdt)} · TrxID:{' '}
-              <span className="font-mono">{sub.transactionId}</span> · From {sub.senderNumber}
+              <span className="font-mono font-semibold">{sub.transactionId}</span> · From{' '}
+              <span className="font-mono">{sub.senderNumber}</span>
             </span>
-            <span className="text-amber-700 dark:text-amber-300 tabular-nums">
+            <span className="text-warning-text num">
               Submitted {formatDateTime(sub.createdAt)}
             </span>
           </li>

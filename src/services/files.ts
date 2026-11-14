@@ -2,7 +2,7 @@ import {SIGNED_URL_EXPIRY_SECONDS, STORAGE_BUCKET} from '@/config/constants';
 import {env, isDemoMode} from '@/lib/env';
 import {putMockStorageFile} from '@/lib/mockSupabase';
 import {supabase} from '@/lib/supabase';
-import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import {assertSafeRecordId, getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
 import type {FileRow} from '@/types/database';
 import type {ProjectFileRecord} from '@/types/portal';
 import {fileUploadMetadataSchema, updateFileInputSchema} from '@/types/schemas';
@@ -195,11 +195,24 @@ async function uploadBlobWithProgress(params: {
   });
 }
 
+function isSafeStoragePath(storagePath: string): boolean {
+  const trimmed = storagePath.trim();
+  return (
+    trimmed.length > 0 &&
+    !trimmed.startsWith('/') &&
+    !trimmed.includes('..') &&
+    !trimmed.includes('\\') &&
+    !/[\x00-\x1f\x7f]/.test(trimmed)
+  );
+}
+
 export async function createSignedUrlMap(
   paths: string[],
   expiresInSeconds = SIGNED_URL_EXPIRY_SECONDS,
 ): Promise<Map<string, string>> {
-  const uniquePaths = Array.from(new Set(paths.map((p) => p.trim()).filter(Boolean)));
+  const uniquePaths = Array.from(
+    new Set(paths.map((p) => p.trim()).filter((p) => isSafeStoragePath(p))),
+  );
   const urlMap = new Map<string, string>();
   if (uniquePaths.length === 0) return urlMap;
 
@@ -227,8 +240,8 @@ export async function getSignedDownloadUrl(
   storagePath: string,
   expiresInSeconds = SIGNED_URL_EXPIRY_SECONDS,
 ): Promise<string> {
-  if (!storagePath.trim()) {
-    throw new Error('File storage path is missing.');
+  if (!isSafeStoragePath(storagePath)) {
+    throw new Error('File storage path is missing or invalid.');
   }
 
   const {data, error} = await supabase.storage
@@ -316,10 +329,11 @@ export async function list(options: ListFilesOptions = {}): Promise<ProjectFileR
 }
 
 export async function getById(id: string): Promise<ProjectFileRecord | null> {
+  const safeId = assertSafeRecordId(id, 'file');
   const {data, error} = await supabase
     .from('files')
     .select(FILE_SELECT)
-    .eq('id', id)
+    .eq('id', safeId)
     .maybeSingle();
 
   if (error) {
@@ -357,9 +371,12 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
     throw new Error('Your session has expired. Please sign in again to upload files.');
   }
 
+  const authenticatedUid = session.user?.id || valid.uploadedByUid;
   const fileUuid = crypto.randomUUID();
   const safeName = sanitizeStorageFileName(valid.fileName);
-  const storagePath = `${valid.clientId}/${valid.projectId}/${fileUuid}-${safeName}`;
+  const safeClientSegment = assertSafeRecordId(valid.clientId, 'client');
+  const safeProjectSegment = assertSafeRecordId(valid.projectId, 'project');
+  const storagePath = `${safeClientSegment}/${safeProjectSegment}/${fileUuid}-${safeName}`;
 
   await uploadBlobWithProgress({
     storagePath,
@@ -383,7 +400,7 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
     .insert({
       id: fileUuid,
       project_id: valid.projectId,
-      uploaded_by: valid.uploadedByUid,
+      uploaded_by: authenticatedUid,
       name: valid.fileName.slice(0, 260),
       storage_path: storagePath,
       size_bytes: valid.fileSize,
@@ -409,6 +426,7 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
 }
 
 export async function update(id: string, input: UpdateFileInput): Promise<ProjectFileRecord> {
+  const safeId = assertSafeRecordId(id, 'file');
   const valid = parseServiceInput(updateFileInputSchema, input);
   const payload: Record<string, string> = {};
   if (valid.name !== undefined) payload.name = valid.name.slice(0, 260);
@@ -416,7 +434,7 @@ export async function update(id: string, input: UpdateFileInput): Promise<Projec
   const {data, error} = await supabase
     .from('files')
     .update(payload)
-    .eq('id', id)
+    .eq('id', safeId)
     .select(FILE_SELECT)
     .single();
 
@@ -430,22 +448,24 @@ export async function update(id: string, input: UpdateFileInput): Promise<Projec
 }
 
 export async function remove(id: string): Promise<void> {
-  const {data: existing, error: fetchError} = await supabase
+  const safeId = assertSafeRecordId(id, 'file');
+  // Delete metadata row FIRST so Postgres RLS gates removal before touching Storage
+  const {data: deletedRow, error: deleteError} = await supabase
     .from('files')
+    .delete()
+    .eq('id', safeId)
     .select('id, storage_path')
-    .eq('id', id)
     .maybeSingle();
 
-  if (fetchError) {
-    throw new Error(getErrorMessage(fetchError, 'Unable to verify file record.'));
+  if (deleteError) {
+    throw new Error(getErrorMessage(deleteError, 'Unable to delete file record.'));
   }
-  if (!existing) {
+  if (!deletedRow) {
     throw new Error('File not found or you do not have permission to delete it.');
   }
 
-  const storagePath = String(existing.storage_path ?? '').trim();
-
-  if (storagePath) {
+  const storagePath = String(deletedRow.storage_path ?? '').trim();
+  if (isSafeStoragePath(storagePath)) {
     const {error: storageError} = await supabase.storage
       .from(STORAGE_BUCKET)
       .remove([storagePath]);
@@ -456,15 +476,12 @@ export async function remove(id: string): Promise<void> {
         'statusCode' in storageError ? Number(storageError.statusCode) : 0;
       const isNotFound = statusCode === 404 || msg.includes('not found');
       if (!isNotFound) {
-        throw new Error(
-          getErrorMessage(storageError, 'Unable to remove file from storage.'),
+        console.warn(
+          '[files.ts] File record deleted, but storage cleanup failed:',
+          storagePath,
+          storageError,
         );
       }
     }
-  }
-
-  const {error: deleteError} = await supabase.from('files').delete().eq('id', id);
-  if (deleteError) {
-    throw new Error(getErrorMessage(deleteError, 'Unable to delete file record.'));
   }
 }

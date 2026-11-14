@@ -1,4 +1,5 @@
 import {RotateCcw, X} from 'lucide-react';
+import {Button, Card} from '@/components/ui';
 import {formatFileSize} from '@/utils/fileSharing';
 
 export interface ActiveUploadItem {
@@ -24,8 +25,8 @@ export function UploadQueue({uploads, onCancel, onRetry, onDismiss}: UploadQueue
   if (uploads.length === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm p-4 sm:p-5 space-y-3">
-      <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+    <Card className="p-4 sm:p-5 space-y-3">
+      <h4 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted">
         Uploads ({uploads.length})
       </h4>
       <ul className="space-y-3">
@@ -35,18 +36,14 @@ export function UploadQueue({uploads, onCancel, onRetry, onDismiss}: UploadQueue
           return (
             <li
               key={item.id}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3.5 space-y-2"
+              className="rounded-xl border border-border bg-surface-muted p-3.5 space-y-2"
             >
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100 truncate">
-                    {item.fileName}
-                  </p>
+                  <p className="text-sm font-semibold text-foreground truncate">{item.fileName}</p>
                   <p
-                    className={`text-xs tabular-nums ${
-                      item.status === 'error'
-                        ? 'text-red-600 dark:text-red-400'
-                        : 'text-slate-500 dark:text-slate-400'
+                    className={`text-xs num ${
+                      item.status === 'error' ? 'text-danger-text font-medium' : 'text-muted'
                     }`}
                   >
                     {item.status === 'saving'
@@ -59,33 +56,35 @@ export function UploadQueue({uploads, onCancel, onRetry, onDismiss}: UploadQueue
 
                 <div className="flex items-center gap-1.5 shrink-0">
                   {item.status === 'uploading' && (
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => onCancel(item.id)}
                       aria-label={`Cancel upload for ${item.fileName}`}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                      icon={<X className="w-3.5 h-3.5" aria-hidden="true" />}
                     >
-                      <X className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>Cancel</span>
-                    </button>
+                      Cancel
+                    </Button>
                   )}
 
                   {isFailedOrCancelled && (
                     <>
-                      <button
+                      <Button
                         type="button"
+                        variant="primary"
+                        size="sm"
                         onClick={() => onRetry(item)}
                         aria-label={`Retry upload for ${item.fileName}`}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors"
+                        icon={<RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />}
                       >
-                        <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>Retry</span>
-                      </button>
+                        Retry
+                      </Button>
                       <button
                         type="button"
                         onClick={() => onDismiss(item.id)}
                         aria-label={`Dismiss ${item.fileName}`}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                        className="p-1.5 rounded-lg text-muted hover:text-foreground hover:bg-surface transition-colors cursor-pointer"
                       >
                         <X className="w-4 h-4" aria-hidden="true" />
                       </button>
@@ -101,10 +100,10 @@ export function UploadQueue({uploads, onCancel, onRetry, onDismiss}: UploadQueue
                   aria-valuemin={0}
                   aria-valuemax={100}
                   aria-label={`Upload progress for ${item.fileName}`}
-                  className="h-2 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden"
+                  className="h-2 rounded-full bg-surface border border-border overflow-hidden"
                 >
                   <div
-                    className="h-full rounded-full bg-indigo-600 dark:bg-indigo-500 transition-all duration-150"
+                    className="h-full rounded-full bg-gradient-brand transition-all duration-150"
                     style={{width: `${item.progress}%`}}
                   />
                 </div>
@@ -113,6 +112,6 @@ export function UploadQueue({uploads, onCancel, onRetry, onDismiss}: UploadQueue
           );
         })}
       </ul>
-    </div>
+    </Card>
   );
 }
