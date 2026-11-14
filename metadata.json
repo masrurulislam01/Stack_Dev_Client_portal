@@ -1,0 +1,6 @@
+{
+  "name": "Stack Dev Client Portal",
+  "description": "Secure client portal for Stack Dev, a software agency in Dhaka, Bangladesh building websites and Flutter mobile apps.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
