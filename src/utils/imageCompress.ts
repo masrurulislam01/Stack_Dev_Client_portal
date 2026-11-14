@@ -1,5 +1,4 @@
-const MAX_DIMENSION = 1024;
-const MAX_DATA_URL_LENGTH = 340000;
+import {MAX_DATA_URL_LENGTH, MAX_IMAGE_DIMENSION} from '@/config/constants';
 
 export async function compressImageToDataUrl(file: File): Promise<string> {
   const lowerType = (file.type || '').toLowerCase();
@@ -17,7 +16,7 @@ export async function compressImageToDataUrl(file: File): Promise<string> {
       image.src = objectUrl;
     });
 
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(img.width, img.height));
+    const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height));
     const targetWidth = Math.max(1, Math.round(img.width * scale));
     const targetHeight = Math.max(1, Math.round(img.height * scale));
 

@@ -1,9 +1,14 @@
-import {supabase} from '../lib/supabase';
-import type {MessageReadRow, MessageRow} from '../types/database';
-import type {ProjectMessageAttachment, ProjectMessageRecord} from '../types/portal';
-import {getFileExtension} from '../utils/fileSharing';
-import {createSignedUrlMap} from './files';
-import {getErrorMessage} from './serviceUtils';
+import {supabase} from '@/lib/supabase';
+import {createSignedUrlMap} from '@/services/files';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {MessageReadRow, MessageRow} from '@/types/database';
+import type {ProjectMessageAttachment, ProjectMessageRecord} from '@/types/portal';
+import {
+  createMessageInputSchema,
+  markThreadReadInputSchema,
+  updateMessageInputSchema,
+} from '@/types/schemas';
+import {getFileExtension} from '@/utils/fileSharing';
 
 interface JoinedFileMeta {
   id?: string | null;
@@ -156,13 +161,15 @@ export async function getById(
 }
 
 export async function create(input: CreateMessageInput): Promise<ProjectMessageRecord> {
+  const valid = parseServiceInput(createMessageInputSchema, input);
+
   const {data, error} = await supabase
     .from('messages')
     .insert({
-      project_id: input.projectId,
-      sender_id: input.senderId,
-      body: input.text.trim(),
-      file_id: input.fileId ?? null,
+      project_id: valid.projectId,
+      sender_id: valid.senderId,
+      body: valid.text,
+      file_id: valid.fileId ?? null,
     })
     .select(MESSAGE_SELECT)
     .single();
@@ -177,16 +184,18 @@ export async function create(input: CreateMessageInput): Promise<ProjectMessageR
     : new Map<string, string>();
 
   return mapMessageRow(row, signedMap, {
-    viewerId: input.senderId,
-    viewerName: input.senderName,
-    viewerRole: input.senderRole,
+    viewerId: valid.senderId,
+    viewerName: valid.senderName,
+    viewerRole: valid.senderRole,
   });
 }
 
 export async function update(id: string, input: UpdateMessageInput): Promise<ProjectMessageRecord> {
+  const valid = parseServiceInput(updateMessageInputSchema, input);
+
   const {data, error} = await supabase
     .from('messages')
-    .update({body: input.text.trim()})
+    .update({body: valid.text})
     .eq('id', id)
     .select(MESSAGE_SELECT)
     .single();
@@ -212,10 +221,11 @@ export async function remove(id: string): Promise<void> {
 
 export async function markThreadRead(messageIds: string[], userId: string): Promise<void> {
   if (messageIds.length === 0 || !userId) return;
+  const valid = parseServiceInput(markThreadReadInputSchema, {messageIds, userId});
 
-  const payload = messageIds.map((messageId) => ({
+  const payload = valid.messageIds.map((messageId) => ({
     message_id: messageId,
-    user_id: userId,
+    user_id: valid.userId,
   }));
 
   const {error} = await supabase
@@ -246,14 +256,13 @@ export async function countUnread(options: {
   }, 0);
 }
 
-/**
- * Subscribe to Supabase Realtime updates ONLY on `messages` and `message_reads`.
- */
 export function subscribeToMessages(
   onChange: () => void,
   projectId?: string,
 ): () => void {
-  const suffix = projectId ? `project-${projectId}` : `global-${Math.random().toString(36).slice(2, 8)}`;
+  const suffix = projectId
+    ? `project-${projectId}`
+    : `global-${Math.random().toString(36).slice(2, 8)}`;
   const channel = supabase
     .channel(`messages-rt-${suffix}`)
     .on(

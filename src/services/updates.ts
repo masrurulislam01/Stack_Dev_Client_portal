@@ -1,7 +1,8 @@
-import {supabase} from '../lib/supabase';
-import type {UpdateRow} from '../types/database';
-import type {ProjectUpdateRecord} from '../types/portal';
-import {getErrorMessage} from './serviceUtils';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {UpdateRow} from '@/types/database';
+import type {ProjectUpdateRecord} from '@/types/portal';
+import {createUpdateInputSchema, updateUpdateInputSchema} from '@/types/schemas';
 
 interface UpdateJoinedRow extends UpdateRow {
   projects?: {title?: string | null; client_id?: string | null} | null;
@@ -31,7 +32,9 @@ const ATTACHMENT_SUFFIX = '-->';
 
 function encodeUpdateBody(message: string, attachments?: string[]): string {
   const cleanMessage = message.trim();
-  const safeAttachments = (attachments ?? []).filter((src) => typeof src === 'string' && src.length > 0);
+  const safeAttachments = (attachments ?? []).filter(
+    (src) => typeof src === 'string' && src.length > 0,
+  );
   if (safeAttachments.length === 0) {
     return cleanMessage;
   }
@@ -123,12 +126,14 @@ export async function getById(id: string): Promise<ProjectUpdateRecord | null> {
 }
 
 export async function create(input: CreateUpdateInput): Promise<ProjectUpdateRecord> {
+  const valid = parseServiceInput(createUpdateInputSchema, input);
+
   const {data, error} = await supabase
     .from('updates')
     .insert({
-      project_id: input.projectId,
-      author_id: input.authorId || null,
-      body: encodeUpdateBody(input.message, input.attachments),
+      project_id: valid.projectId,
+      author_id: valid.authorId || null,
+      body: encodeUpdateBody(valid.message, valid.attachments),
     })
     .select(UPDATE_SELECT)
     .single();
@@ -141,10 +146,12 @@ export async function create(input: CreateUpdateInput): Promise<ProjectUpdateRec
 }
 
 export async function update(id: string, input: UpdateUpdateInput): Promise<ProjectUpdateRecord> {
+  const valid = parseServiceInput(updateUpdateInputSchema, input);
+
   const {data, error} = await supabase
     .from('updates')
     .update({
-      body: encodeUpdateBody(input.message, input.attachments),
+      body: encodeUpdateBody(valid.message, valid.attachments),
     })
     .eq('id', id)
     .select(UPDATE_SELECT)

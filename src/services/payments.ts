@@ -1,17 +1,22 @@
-import {supabase} from '../lib/supabase';
+import type {
+  InvoiceStatus,
+  PaymentSubmissionMethod,
+  PaymentSubmissionStatus,
+} from '@/config/constants';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
 import type {
   DbInvoiceStatus,
   DbPaymentSubmissionMethod,
   DbPaymentSubmissionStatus,
   PaymentSubmissionRow,
-} from '../types/database';
-import type {
-  InvoiceStatus,
-  PaymentSubmissionMethod,
-  PaymentSubmissionRecord,
-  PaymentSubmissionStatus,
-} from '../types/portal';
-import {getErrorMessage} from './serviceUtils';
+} from '@/types/database';
+import type {PaymentSubmissionRecord} from '@/types/portal';
+import {
+  createPaymentSubmissionInputSchema,
+  rejectPaymentInputSchema,
+  updatePaymentSubmissionInputSchema,
+} from '@/types/schemas';
 
 interface PaymentJoinedRow extends PaymentSubmissionRow {
   invoices?: {
@@ -109,7 +114,6 @@ async function selectWithFallback(
     typeof first.error === 'object' && first.error !== null && 'message' in first.error
       ? String((first.error as {message?: unknown}).message ?? '')
       : '';
-  // Fallback if multiple FKs exist between payment_submissions and profiles
   if (msg.toLowerCase().includes('relationship') || msg.toLowerCase().includes('could not find')) {
     const second = await buildQuery(PAYMENT_SELECT_FALLBACK);
     if (!second.error) {
@@ -195,25 +199,24 @@ export async function isTransactionIdTakenForInvoice(
 export async function create(
   input: CreatePaymentSubmissionInput,
 ): Promise<PaymentSubmissionRecord> {
-  const cleanTrx = input.transactionId.trim();
+  const valid = parseServiceInput(createPaymentSubmissionInputSchema, input);
 
-  // Client-side pre-check for unique Transaction ID per invoice
-  const duplicate = await isTransactionIdTakenForInvoice(input.invoiceId, cleanTrx);
+  const duplicate = await isTransactionIdTakenForInvoice(valid.invoiceId, valid.transactionId);
   if (duplicate) {
     throw new Error(
-      `Transaction ID "${cleanTrx}" has already been submitted for this invoice. Please check your reference and try again.`,
+      `Transaction ID "${valid.transactionId}" has already been submitted for this invoice. Please check your reference and try again.`,
     );
   }
 
   const {data, error} = await supabase
     .from('payment_submissions')
     .insert({
-      invoice_id: input.invoiceId,
-      submitted_by: input.submittedBy,
-      method: input.method as DbPaymentSubmissionMethod,
-      sender_number: input.senderNumber.trim(),
-      transaction_id: cleanTrx,
-      amount_bdt: input.amountBdt,
+      invoice_id: valid.invoiceId,
+      submitted_by: valid.submittedBy,
+      method: valid.method as DbPaymentSubmissionMethod,
+      sender_number: valid.senderNumber,
+      transaction_id: valid.transactionId,
+      amount_bdt: valid.amountBdt,
       status: 'Pending',
     })
     .select('id')
@@ -226,7 +229,7 @@ export async function create(
         : '';
     if (code === '23505') {
       throw new Error(
-        `Transaction ID "${cleanTrx}" has already been submitted for this invoice.`,
+        `Transaction ID "${valid.transactionId}" has already been submitted for this invoice.`,
       );
     }
     throw new Error(getErrorMessage(error, 'Unable to submit payment proof.'));
@@ -243,14 +246,15 @@ export async function update(
   id: string,
   input: UpdatePaymentSubmissionInput,
 ): Promise<PaymentSubmissionRecord> {
+  const valid = parseServiceInput(updatePaymentSubmissionInputSchema, input);
   const payload: Record<string, unknown> = {};
-  if (input.status !== undefined) payload.status = input.status as DbPaymentSubmissionStatus;
-  if (input.method !== undefined) payload.method = input.method as DbPaymentSubmissionMethod;
-  if (input.senderNumber !== undefined) payload.sender_number = input.senderNumber.trim();
-  if (input.transactionId !== undefined) payload.transaction_id = input.transactionId.trim();
-  if (input.amountBdt !== undefined) payload.amount_bdt = input.amountBdt;
-  if (input.rejectionReason !== undefined) {
-    payload.rejection_reason = input.rejectionReason.trim();
+  if (valid.status !== undefined) payload.status = valid.status as DbPaymentSubmissionStatus;
+  if (valid.method !== undefined) payload.method = valid.method as DbPaymentSubmissionMethod;
+  if (valid.senderNumber !== undefined) payload.sender_number = valid.senderNumber;
+  if (valid.transactionId !== undefined) payload.transaction_id = valid.transactionId;
+  if (valid.amountBdt !== undefined) payload.amount_bdt = valid.amountBdt;
+  if (valid.rejectionReason !== undefined) {
+    payload.rejection_reason = valid.rejectionReason;
   }
 
   const {error} = await supabase
@@ -269,11 +273,6 @@ export async function update(
   return updated;
 }
 
-/**
- * Atomically verifies a pending payment submission and marks the invoice Paid
- * via the `verify_payment_submission` PostgreSQL SECURITY DEFINER function.
- * Prevents double-verification and enforces admin-only authorization in the database.
- */
 export async function verifyAndMarkInvoicePaid(
   submission: PaymentSubmissionRecord,
 ): Promise<PaymentSubmissionRecord> {
@@ -282,9 +281,7 @@ export async function verifyAndMarkInvoicePaid(
   });
 
   if (error) {
-    throw new Error(
-      getErrorMessage(error, 'Unable to verify payment submission.'),
-    );
+    throw new Error(getErrorMessage(error, 'Unable to verify payment submission.'));
   }
 
   const updated = await getById(submission.id);
@@ -294,31 +291,22 @@ export async function verifyAndMarkInvoicePaid(
   return updated;
 }
 
-/**
- * Rejects a pending payment submission with an explicit reason via the
- * `reject_payment_submission` PostgreSQL SECURITY DEFINER function.
- */
 export async function rejectSubmission(
   submissionId: string,
   reason: string,
 ): Promise<PaymentSubmissionRecord> {
-  const cleanReason = reason.trim();
-  if (!cleanReason) {
-    throw new Error('Please provide a reason for rejecting this payment.');
-  }
+  const valid = parseServiceInput(rejectPaymentInputSchema, {submissionId, reason});
 
   const {error} = await supabase.rpc('reject_payment_submission', {
-    p_submission_id: submissionId,
-    p_reason: cleanReason,
+    p_submission_id: valid.submissionId,
+    p_reason: valid.reason,
   });
 
   if (error) {
-    throw new Error(
-      getErrorMessage(error, 'Unable to reject payment submission.'),
-    );
+    throw new Error(getErrorMessage(error, 'Unable to reject payment submission.'));
   }
 
-  const updated = await getById(submissionId);
+  const updated = await getById(valid.submissionId);
   if (!updated) {
     throw new Error('Payment was rejected, but the updated record could not be loaded.');
   }

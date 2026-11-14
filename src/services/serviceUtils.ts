@@ -1,3 +1,5 @@
+import type {z} from 'zod';
+
 export function getErrorMessage(error: unknown, fallback: string): string {
   if (!error) return fallback;
 
@@ -35,4 +37,13 @@ export function getErrorMessage(error: unknown, fallback: string): string {
   }
 
   return raw.trim() || fallback;
+}
+
+export function parseServiceInput<T>(schema: z.ZodType<T>, input: unknown): T {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    const firstIssue = result.error.issues[0];
+    throw new Error(firstIssue?.message || 'Invalid input provided.');
+  }
+  return result.data;
 }

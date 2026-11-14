@@ -1,19 +1,8 @@
 import {jsPDF} from 'jspdf';
-import type {InvoiceRecord} from '../types/portal';
-import {formatDateDisplay, formatDateTime} from './format';
-import {
-  AGENCY_ADDRESS,
-  AGENCY_NAME,
-  AGENCY_PHONE,
-  getEffectiveInvoiceStatus,
-} from './invoices';
-
-function formatPdfBDT(amount: number): string {
-  const safe = Number.isFinite(amount) ? amount : 0;
-  return `BDT ${new Intl.NumberFormat('en-US', {
-    maximumFractionDigits: 0,
-  }).format(safe)}`;
-}
+import {AGENCY_INFO, CURRENCY, formatPdfBDT} from '@/config/constants';
+import type {InvoiceRecord} from '@/types/portal';
+import {formatDateDisplay, formatDateTime} from '@/utils/format';
+import {getEffectiveInvoiceStatus} from '@/utils/invoices';
 
 export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   const doc = new jsPDF({unit: 'pt', format: 'a4'});
@@ -34,13 +23,13 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(22);
   doc.setTextColor(67, 56, 202);
-  doc.text(AGENCY_NAME, margin, y);
+  doc.text(AGENCY_INFO.name, margin, y);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
   doc.setTextColor(71, 85, 105);
-  doc.text(AGENCY_ADDRESS, margin, y + 18);
-  doc.text(`Phone: ${AGENCY_PHONE}`, margin, y + 33);
+  doc.text(AGENCY_INFO.address, margin, y + 18);
+  doc.text(`Phone: ${AGENCY_INFO.phone}`, margin, y + 33);
 
   // Invoice Title & Number (Right)
   doc.setFont('helvetica', 'bold');
@@ -102,7 +91,7 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   const metaX = pageWidth - margin - 180;
   doc.text(`Issue Date: ${formatDateDisplay(invoice.issueDate)}`, metaX, y + 16);
   doc.text(`Due Date: ${formatDateDisplay(invoice.dueDate)}`, metaX, y + 31);
-  doc.text(`Currency: BDT`, metaX, y + 46);
+  doc.text(`Currency: ${CURRENCY.code}`, metaX, y + 46);
 
   y = Math.max(billY, y + 60) + 18;
 
@@ -219,7 +208,7 @@ export function downloadInvoicePdf(invoice: InvoiceRecord): void {
   doc.setFontSize(8.5);
   doc.setTextColor(148, 163, 184);
   doc.text(
-    `${AGENCY_ADDRESS} · ${AGENCY_PHONE} · Thank you for building with Stack Dev.`,
+    `${AGENCY_INFO.address} · ${AGENCY_INFO.phone} · Thank you for building with ${AGENCY_INFO.name}.`,
     pageWidth / 2,
     pageHeight - 30,
     {align: 'center'},

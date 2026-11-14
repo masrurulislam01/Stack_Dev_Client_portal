@@ -1,12 +1,14 @@
-import {env} from '../lib/env';
-import {supabase} from '../lib/supabase';
-import type {FileRow} from '../types/database';
-import type {ProjectFileRecord} from '../types/portal';
-import {getFileExtension, sanitizeStorageFileName} from '../utils/fileSharing';
-import {getErrorMessage} from './serviceUtils';
+import {SIGNED_URL_EXPIRY_SECONDS, STORAGE_BUCKET} from '@/config/constants';
+import {env, isDemoMode} from '@/lib/env';
+import {putMockStorageFile} from '@/lib/mockSupabase';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {FileRow} from '@/types/database';
+import type {ProjectFileRecord} from '@/types/portal';
+import {fileUploadMetadataSchema, updateFileInputSchema} from '@/types/schemas';
+import {getFileExtension, sanitizeStorageFileName} from '@/utils/fileSharing';
 
-export const STORAGE_BUCKET = 'project-files';
-export const SIGNED_URL_EXPIRY_SECONDS = 60;
+export {SIGNED_URL_EXPIRY_SECONDS, STORAGE_BUCKET};
 
 export class UploadCancelledError extends Error {
   constructor(message = 'Upload was cancelled.') {
@@ -105,11 +107,19 @@ async function uploadBlobWithProgress(params: {
     throw new UploadCancelledError();
   }
 
+  if (isDemoMode) {
+    onProgress?.(45, Math.round(file.size / 2), file.size);
+    await putMockStorageFile(storagePath, file);
+    if (signal?.aborted) {
+      throw new UploadCancelledError();
+    }
+    onProgress?.(95, file.size, file.size);
+    return;
+  }
+
   const encodedPath = encodeStorageObjectPath(storagePath);
   const uploadUrl = `${env.supabaseUrl}/storage/v1/object/${STORAGE_BUCKET}/${encodedPath}`;
 
-  // Wrap in a File with canonical MIME type so multipart FormData sends the exact
-  // allowed Content-Type even when the OS reports empty or application/octet-stream.
   const normalizedFile = new File([file], safeName, {type: mimeType});
   const formData = new FormData();
   formData.append('cacheControl', '3600');
@@ -137,7 +147,6 @@ async function uploadBlobWithProgress(params: {
 
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) {
-        // Reserve 95–100% for inserting the database metadata row
         const pct = Math.min(95, Math.max(1, Math.round((event.loaded / event.total) * 95)));
         onProgress?.(pct, event.loaded, event.total);
       }
@@ -154,18 +163,14 @@ async function uploadBlobWithProgress(params: {
       if (settled) return;
       settled = true;
       cleanup();
-      const err = new Error('Network error during file upload. Check your connection and retry.');
-      console.error('[files.ts] XHR network error uploading to', storagePath);
-      reject(err);
+      reject(new Error('Network error during file upload. Check your connection and retry.'));
     };
 
     xhr.ontimeout = () => {
       if (settled) return;
       settled = true;
       cleanup();
-      const err = new Error('File upload timed out. Please try again.');
-      console.error('[files.ts] XHR timeout uploading to', storagePath);
-      reject(err);
+      reject(new Error('File upload timed out. Please try again.'));
     };
 
     xhr.onload = () => {
@@ -179,14 +184,7 @@ async function uploadBlobWithProgress(params: {
         return;
       }
 
-      const friendly = parseStorageHttpError(xhr.status, xhr.responseText || '');
-      console.error('[files.ts] Storage upload failed:', {
-        status: xhr.status,
-        storagePath,
-        mimeType,
-        responseText: xhr.responseText,
-      });
-      reject(new Error(friendly));
+      reject(new Error(parseStorageHttpError(xhr.status, xhr.responseText || '')));
     };
 
     xhr.open('POST', uploadUrl, true);
@@ -218,8 +216,6 @@ export async function createSignedUrlMap(
     for (const item of data) {
       if (item.path && item.signedUrl && !item.error) {
         urlMap.set(item.path, item.signedUrl);
-      } else if (item.error) {
-        console.error('[files.ts] Signed URL error for path:', item.path, item.error);
       }
     }
   }
@@ -232,9 +228,7 @@ export async function getSignedDownloadUrl(
   expiresInSeconds = SIGNED_URL_EXPIRY_SECONDS,
 ): Promise<string> {
   if (!storagePath.trim()) {
-    const err = new Error('File storage path is missing.');
-    console.error('[files.ts] getSignedDownloadUrl called with empty storagePath');
-    throw err;
+    throw new Error('File storage path is missing.');
   }
 
   const {data, error} = await supabase.storage
@@ -242,7 +236,6 @@ export async function getSignedDownloadUrl(
     .createSignedUrl(storagePath, expiresInSeconds);
 
   if (error || !data?.signedUrl) {
-    console.error('[files.ts] createSignedUrl failed for path:', storagePath, error);
     throw new Error(getErrorMessage(error, 'Unable to generate temporary file link.'));
   }
 
@@ -311,7 +304,6 @@ export async function list(options: ListFilesOptions = {}): Promise<ProjectFileR
 
   const {data, error} = await query;
   if (error) {
-    console.error('[files.ts] Failed to list files:', error);
     throw new Error(getErrorMessage(error, 'Unable to load shared files.'));
   }
 
@@ -331,7 +323,6 @@ export async function getById(id: string): Promise<ProjectFileRecord | null> {
     .maybeSingle();
 
   if (error) {
-    console.error('[files.ts] Failed to load file by id:', id, error);
     throw new Error(getErrorMessage(error, 'Unable to load file details.'));
   }
   if (!data) return null;
@@ -342,22 +333,20 @@ export async function getById(id: string): Promise<ProjectFileRecord | null> {
 }
 
 async function removeStorageObjectQuietly(storagePath: string): Promise<void> {
-  const {error} = await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
-  if (error) {
-    console.error('[files.ts] Failed to clean up storage object:', storagePath, error);
-  }
+  await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
 }
 
 export async function create(input: CreateFileInput): Promise<ProjectFileRecord> {
-  if (!input.clientId || !input.projectId || !input.uploadedByUid) {
-    const err = new Error('Missing project, client, or user identifier for upload.');
-    console.error('[files.ts] Missing required identifiers:', {
-      clientId: input.clientId,
-      projectId: input.projectId,
-      uploadedByUid: input.uploadedByUid,
-    });
-    throw err;
-  }
+  const valid = parseServiceInput(fileUploadMetadataSchema, {
+    projectId: input.projectId,
+    clientId: input.clientId,
+    uploadedByUid: input.uploadedByUid,
+    uploadedByName: input.uploadedByName,
+    uploadedByRole: input.uploadedByRole,
+    fileName: input.file.name,
+    fileSize: input.file.size,
+    mimeType: input.mimeType,
+  });
 
   const {
     data: {session},
@@ -365,70 +354,64 @@ export async function create(input: CreateFileInput): Promise<ProjectFileRecord>
   } = await supabase.auth.getSession();
 
   if (sessionError || !session?.access_token) {
-    console.error('[files.ts] No active session token for upload:', sessionError);
     throw new Error('Your session has expired. Please sign in again to upload files.');
   }
 
   const fileUuid = crypto.randomUUID();
-  const safeName = sanitizeStorageFileName(input.file.name);
-  const storagePath = `${input.clientId}/${input.projectId}/${fileUuid}-${safeName}`;
+  const safeName = sanitizeStorageFileName(valid.fileName);
+  const storagePath = `${valid.clientId}/${valid.projectId}/${fileUuid}-${safeName}`;
 
   await uploadBlobWithProgress({
     storagePath,
     file: input.file,
     safeName,
-    mimeType: input.mimeType,
+    mimeType: valid.mimeType,
     accessToken: session.access_token,
     signal: input.signal,
     onProgress: input.onProgress,
   });
 
-  // If the user cancelled right as the XHR upload finished, roll back the storage object.
   if (input.signal?.aborted) {
     await removeStorageObjectQuietly(storagePath);
     throw new UploadCancelledError();
   }
 
-  input.onProgress?.(97, input.file.size, input.file.size);
+  input.onProgress?.(97, valid.fileSize, valid.fileSize);
 
   const {data, error: insertError} = await supabase
     .from('files')
     .insert({
       id: fileUuid,
-      project_id: input.projectId,
-      uploaded_by: input.uploadedByUid,
-      name: input.file.name.slice(0, 260),
+      project_id: valid.projectId,
+      uploaded_by: valid.uploadedByUid,
+      name: valid.fileName.slice(0, 260),
       storage_path: storagePath,
-      size_bytes: input.file.size,
-      mime_type: input.mimeType,
+      size_bytes: valid.fileSize,
+      mime_type: valid.mimeType,
     })
     .select(FILE_SELECT)
     .single();
 
   if (insertError || !data) {
-    console.error(
-      '[files.ts] Database insert failed; deleting uploaded storage object:',
-      storagePath,
-      insertError,
-    );
     await removeStorageObjectQuietly(storagePath);
     throw new Error(getErrorMessage(insertError, 'Unable to save file record.'));
   }
 
-  input.onProgress?.(100, input.file.size, input.file.size);
+  input.onProgress?.(100, valid.fileSize, valid.fileSize);
 
   const row = data as unknown as FileJoinedRow;
   const signedMap = await createSignedUrlMap([storagePath]);
   return mapFileRow(row, signedMap.get(storagePath) ?? '', {
-    viewerId: input.uploadedByUid,
-    viewerName: input.uploadedByName,
-    viewerRole: input.uploadedByRole,
+    viewerId: valid.uploadedByUid,
+    viewerName: valid.uploadedByName,
+    viewerRole: valid.uploadedByRole,
   });
 }
 
 export async function update(id: string, input: UpdateFileInput): Promise<ProjectFileRecord> {
+  const valid = parseServiceInput(updateFileInputSchema, input);
   const payload: Record<string, string> = {};
-  if (input.name !== undefined) payload.name = input.name.trim().slice(0, 260);
+  if (valid.name !== undefined) payload.name = valid.name.slice(0, 260);
 
   const {data, error} = await supabase
     .from('files')
@@ -438,7 +421,6 @@ export async function update(id: string, input: UpdateFileInput): Promise<Projec
     .single();
 
   if (error || !data) {
-    console.error('[files.ts] Failed to update file metadata:', id, error);
     throw new Error(getErrorMessage(error, 'Unable to update file metadata.'));
   }
 
@@ -455,18 +437,14 @@ export async function remove(id: string): Promise<void> {
     .maybeSingle();
 
   if (fetchError) {
-    console.error('[files.ts] Failed to look up file before deletion:', id, fetchError);
     throw new Error(getErrorMessage(fetchError, 'Unable to verify file record.'));
   }
-
   if (!existing) {
-    console.error('[files.ts] File record not found or access denied for delete:', id);
     throw new Error('File not found or you do not have permission to delete it.');
   }
 
   const storagePath = String(existing.storage_path ?? '').trim();
 
-  // Delete the storage object first so a storage RLS denial never leaves an orphaned blob
   if (storagePath) {
     const {error: storageError} = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -477,13 +455,7 @@ export async function remove(id: string): Promise<void> {
       const statusCode =
         'statusCode' in storageError ? Number(storageError.statusCode) : 0;
       const isNotFound = statusCode === 404 || msg.includes('not found');
-
       if (!isNotFound) {
-        console.error(
-          '[files.ts] Failed to remove file from Supabase Storage:',
-          storagePath,
-          storageError,
-        );
         throw new Error(
           getErrorMessage(storageError, 'Unable to remove file from storage.'),
         );
@@ -493,7 +465,6 @@ export async function remove(id: string): Promise<void> {
 
   const {error: deleteError} = await supabase.from('files').delete().eq('id', id);
   if (deleteError) {
-    console.error('[files.ts] Failed to delete file row from database:', id, deleteError);
     throw new Error(getErrorMessage(deleteError, 'Unable to delete file record.'));
   }
 }

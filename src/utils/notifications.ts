@@ -1,5 +1,5 @@
-import {dispatchNotification} from '../services/notifications';
-import type {NotificationType} from '../types/portal';
+import {dispatchNotification} from '@/services/notifications';
+import type {NotificationType} from '@/types/portal';
 
 export interface CreateNotificationInput {
   recipientRole: 'admin' | 'client';

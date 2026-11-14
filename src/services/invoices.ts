@@ -1,7 +1,13 @@
-import {supabase} from '../lib/supabase';
-import type {DbInvoiceLineItem, DbInvoiceStatus, InvoiceRow} from '../types/database';
-import type {InvoiceLineItem, InvoiceRecord, InvoiceStatus} from '../types/portal';
-import {getErrorMessage} from './serviceUtils';
+import {INVOICE_STATUSES, type InvoiceStatus} from '@/config/constants';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {DbInvoiceLineItem, DbInvoiceStatus, InvoiceRow} from '@/types/database';
+import type {InvoiceLineItem, InvoiceRecord} from '@/types/portal';
+import {
+  createInvoiceInputSchema,
+  markInvoicePaidInputSchema,
+  updateInvoiceInputSchema,
+} from '@/types/schemas';
 
 interface InvoiceJoinedRow extends InvoiceRow {
   clients?: {company_name?: string | null; email?: string | null} | null;
@@ -42,8 +48,6 @@ export interface UpdateInvoiceInput {
   paidAt?: string | null;
 }
 
-const VALID_STATUSES: InvoiceStatus[] = ['Draft', 'Sent', 'Paid', 'Overdue'];
-
 function normalizeItems(raw: unknown): InvoiceLineItem[] {
   if (!Array.isArray(raw)) return [];
   return raw
@@ -64,7 +68,7 @@ function normalizeItems(raw: unknown): InvoiceLineItem[] {
 }
 
 function mapInvoiceRow(row: InvoiceJoinedRow): InvoiceRecord {
-  const status: InvoiceStatus = VALID_STATUSES.includes(row.status) ? row.status : 'Sent';
+  const status: InvoiceStatus = INVOICE_STATUSES.includes(row.status) ? row.status : 'Sent';
 
   return {
     id: String(row.id),
@@ -131,7 +135,8 @@ export async function getById(id: string): Promise<InvoiceRecord | null> {
 }
 
 export async function create(input: CreateInvoiceInput): Promise<InvoiceRecord> {
-  const items: DbInvoiceLineItem[] = input.lineItems.map((li) => ({
+  const valid = parseServiceInput(createInvoiceInputSchema, input);
+  const items: DbInvoiceLineItem[] = valid.lineItems.map((li) => ({
     description: li.description,
     quantity: li.quantity,
     unitPrice: li.unitPrice,
@@ -141,18 +146,18 @@ export async function create(input: CreateInvoiceInput): Promise<InvoiceRecord> 
   const {data, error} = await supabase
     .from('invoices')
     .insert({
-      client_id: input.clientId,
-      project_id: input.projectId,
+      client_id: valid.clientId,
+      project_id: valid.projectId,
       items,
-      total_bdt: input.totalBdt,
-      issue_date: input.issueDate,
-      due_date: input.dueDate,
-      notes: (input.notes ?? '').trim(),
-      status: input.status as DbInvoiceStatus,
+      total_bdt: valid.totalBdt,
+      issue_date: valid.issueDate,
+      due_date: valid.dueDate,
+      notes: valid.notes,
+      status: valid.status as DbInvoiceStatus,
       payment_method:
-        input.status === 'Paid' ? input.paymentMethod || 'Cash' : input.paymentMethod ?? null,
-      payment_reference: input.status === 'Paid' ? input.paymentReference ?? '' : null,
-      paid_at: input.status === 'Paid' ? input.paidAt ?? new Date().toISOString() : null,
+        valid.status === 'Paid' ? valid.paymentMethod || 'Cash' : valid.paymentMethod ?? null,
+      payment_reference: valid.status === 'Paid' ? valid.paymentReference ?? '' : null,
+      paid_at: valid.status === 'Paid' ? valid.paidAt ?? new Date().toISOString() : null,
     })
     .select(INVOICE_SELECT)
     .single();
@@ -165,25 +170,26 @@ export async function create(input: CreateInvoiceInput): Promise<InvoiceRecord> 
 }
 
 export async function update(id: string, input: UpdateInvoiceInput): Promise<InvoiceRecord> {
+  const valid = parseServiceInput(updateInvoiceInputSchema, input);
   const payload: Record<string, unknown> = {};
-  if (input.clientId !== undefined) payload.client_id = input.clientId;
-  if (input.projectId !== undefined) payload.project_id = input.projectId;
-  if (input.lineItems !== undefined) {
-    payload.items = input.lineItems.map((li) => ({
+  if (valid.clientId !== undefined) payload.client_id = valid.clientId;
+  if (valid.projectId !== undefined) payload.project_id = valid.projectId;
+  if (valid.lineItems !== undefined) {
+    payload.items = valid.lineItems.map((li) => ({
       description: li.description,
       quantity: li.quantity,
       unitPrice: li.unitPrice,
       total: Math.round(li.quantity * li.unitPrice),
     }));
   }
-  if (input.totalBdt !== undefined) payload.total_bdt = input.totalBdt;
-  if (input.issueDate !== undefined) payload.issue_date = input.issueDate;
-  if (input.dueDate !== undefined) payload.due_date = input.dueDate;
-  if (input.notes !== undefined) payload.notes = input.notes.trim();
-  if (input.status !== undefined) payload.status = input.status;
-  if (input.paymentMethod !== undefined) payload.payment_method = input.paymentMethod;
-  if (input.paymentReference !== undefined) payload.payment_reference = input.paymentReference;
-  if (input.paidAt !== undefined) payload.paid_at = input.paidAt;
+  if (valid.totalBdt !== undefined) payload.total_bdt = valid.totalBdt;
+  if (valid.issueDate !== undefined) payload.issue_date = valid.issueDate;
+  if (valid.dueDate !== undefined) payload.due_date = valid.dueDate;
+  if (valid.notes !== undefined) payload.notes = valid.notes;
+  if (valid.status !== undefined) payload.status = valid.status;
+  if (valid.paymentMethod !== undefined) payload.payment_method = valid.paymentMethod;
+  if (valid.paymentReference !== undefined) payload.payment_reference = valid.paymentReference;
+  if (valid.paidAt !== undefined) payload.paid_at = valid.paidAt;
 
   const {data, error} = await supabase
     .from('invoices')
@@ -204,10 +210,16 @@ export async function markPaid(
   paymentMethod: string,
   paymentReference = '',
 ): Promise<InvoiceRecord> {
-  return update(id, {
-    status: 'Paid',
+  const valid = parseServiceInput(markInvoicePaidInputSchema, {
+    id,
     paymentMethod,
-    paymentReference: paymentReference.trim(),
+    paymentReference,
+  });
+
+  return update(valid.id, {
+    status: 'Paid',
+    paymentMethod: valid.paymentMethod,
+    paymentReference: valid.paymentReference,
     paidAt: new Date().toISOString(),
   });
 }

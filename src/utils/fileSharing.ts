@@ -1,97 +1,20 @@
-import {env} from '../lib/env';
+import {
+  ALLOWED_BUCKET_MIME_TYPES,
+  ALLOWED_EXTENSIONS,
+  ALLOWED_IMAGE_EXTENSIONS,
+  EXTENSION_ALLOWED_MIMES,
+  EXTENSION_MIME_DEFAULTS,
+  FILE_INPUT_ACCEPT,
+  MAX_FILE_SIZE_BYTES,
+} from '@/config/constants';
+import {env, isDemoMode} from '@/lib/env';
 
-export const MAX_FILE_SIZE_BYTES = 25 * 1024 * 1024; // 25 MB
-
-export const ALLOWED_IMAGE_EXTENSIONS = [
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'bmp',
-  'heic',
-  'heif',
-] as const;
-
-export const ALLOWED_EXTENSIONS = [
-  ...ALLOWED_IMAGE_EXTENSIONS,
-  'pdf',
-  'zip',
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-] as const;
-
-export const ALLOWED_BUCKET_MIME_TYPES = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-  'image/bmp',
-  'image/heic',
-  'image/heif',
-  'application/pdf',
-  'application/zip',
-  'application/x-zip-compressed',
-  'application/msword',
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  'application/vnd.ms-excel',
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-] as const;
-
-export const FILE_INPUT_ACCEPT = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-  'image/bmp',
-  'image/heic',
-  'image/heif',
-  '.pdf',
-  '.zip',
-  '.doc',
-  '.docx',
-  '.xls',
-  '.xlsx',
-].join(',');
-
-const EXTENSION_MIME_DEFAULTS: Record<string, string> = {
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  webp: 'image/webp',
-  bmp: 'image/bmp',
-  heic: 'image/heic',
-  heif: 'image/heif',
-  pdf: 'application/pdf',
-  zip: 'application/zip',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-};
-
-const EXTENSION_ALLOWED_MIMES: Record<string, string[]> = {
-  pdf: ['application/pdf'],
-  zip: [
-    'application/zip',
-    'application/x-zip-compressed',
-    'multipart/x-zip',
-    'application/x-compressed',
-    'application/octet-stream',
-  ],
-  doc: ['application/msword', 'application/octet-stream'],
-  docx: [
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'application/octet-stream',
-  ],
-  xls: ['application/vnd.ms-excel', 'application/octet-stream'],
-  xlsx: [
-    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    'application/octet-stream',
-  ],
+export {
+  ALLOWED_BUCKET_MIME_TYPES,
+  ALLOWED_EXTENSIONS,
+  ALLOWED_IMAGE_EXTENSIONS,
+  FILE_INPUT_ACCEPT,
+  MAX_FILE_SIZE_BYTES,
 };
 
 export function getFileExtension(fileName: string): string {
@@ -207,8 +130,6 @@ export function validateProjectFile(file: File): FileValidationResult {
     }
   }
 
-  // Always normalize empty or generic octet-stream / alias MIME types to the canonical
-  // MIME type allowed by the Supabase Storage bucket `allowed_mime_types`.
   const resolvedMimeType =
     rawType &&
     rawType !== 'application/octet-stream' &&
@@ -224,6 +145,9 @@ export function validateProjectFile(file: File): FileValidationResult {
 }
 
 export function isTrustedStorageUrl(url: string): boolean {
+  if (isDemoMode && (url.startsWith('data:') || url.startsWith('blob:'))) {
+    return true;
+  }
   try {
     const parsed = new URL(url);
     const supabaseHost = new URL(env.supabaseUrl).hostname;

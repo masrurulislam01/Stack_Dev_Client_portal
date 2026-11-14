@@ -1,7 +1,13 @@
-import {supabase} from '../lib/supabase';
-import type {DbMilestoneStatus, MilestoneRow} from '../types/database';
-import type {MilestoneRecord, MilestoneStatus} from '../types/portal';
-import {getErrorMessage} from './serviceUtils';
+import {MILESTONE_STATUSES, type MilestoneStatus} from '@/config/constants';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {DbMilestoneStatus, MilestoneRow} from '@/types/database';
+import type {MilestoneRecord} from '@/types/portal';
+import {
+  createMilestoneInputSchema,
+  submitMilestoneReviewInputSchema,
+  updateMilestoneInputSchema,
+} from '@/types/schemas';
 
 interface MilestoneJoinedRow extends MilestoneRow {
   projects?: {client_id?: string | null} | null;
@@ -30,15 +36,8 @@ export interface UpdateMilestoneInput {
   resetReviewMeta?: boolean;
 }
 
-const VALID_STATUSES: MilestoneStatus[] = [
-  'Pending',
-  'In Review',
-  'Approved',
-  'Changes Requested',
-];
-
 function mapMilestoneRow(row: MilestoneJoinedRow): MilestoneRecord {
-  const status: MilestoneStatus = VALID_STATUSES.includes(row.status)
+  const status: MilestoneStatus = MILESTONE_STATUSES.includes(row.status)
     ? row.status
     : 'Pending';
 
@@ -101,14 +100,16 @@ export async function getById(id: string): Promise<MilestoneRecord | null> {
 }
 
 export async function create(input: CreateMilestoneInput): Promise<MilestoneRecord> {
+  const valid = parseServiceInput(createMilestoneInputSchema, input);
+
   const {data, error} = await supabase
     .from('milestones')
     .insert({
-      project_id: input.projectId,
-      title: input.title.trim(),
-      description: (input.description ?? '').trim(),
-      due_date: input.dueDate || null,
-      status: (input.status ?? 'Pending') as DbMilestoneStatus,
+      project_id: valid.projectId,
+      title: valid.title,
+      description: valid.description,
+      due_date: valid.dueDate || null,
+      status: valid.status as DbMilestoneStatus,
     })
     .select(MILESTONE_SELECT)
     .single();
@@ -124,14 +125,15 @@ export async function update(
   id: string,
   input: UpdateMilestoneInput,
 ): Promise<MilestoneRecord> {
+  const valid = parseServiceInput(updateMilestoneInputSchema, input);
   const payload: Record<string, unknown> = {};
-  if (input.title !== undefined) payload.title = input.title.trim();
-  if (input.description !== undefined) payload.description = input.description.trim();
-  if (input.dueDate !== undefined) payload.due_date = input.dueDate || null;
-  if (input.status !== undefined) payload.status = input.status;
-  if (input.reviewComment !== undefined) payload.feedback = input.reviewComment.trim();
+  if (valid.title !== undefined) payload.title = valid.title;
+  if (valid.description !== undefined) payload.description = valid.description;
+  if (valid.dueDate !== undefined) payload.due_date = valid.dueDate || null;
+  if (valid.status !== undefined) payload.status = valid.status;
+  if (valid.reviewComment !== undefined) payload.feedback = valid.reviewComment;
 
-  if (input.resetReviewMeta) {
+  if (valid.resetReviewMeta) {
     payload.feedback = '';
     payload.reviewed_by = null;
     payload.reviewed_at = null;
@@ -156,18 +158,20 @@ export async function submitClientReview(
   decision: 'Approved' | 'Changes Requested',
   feedback = '',
 ): Promise<MilestoneRecord> {
-  const cleanFeedback = decision === 'Changes Requested' ? feedback.trim() : '';
-  if (decision === 'Changes Requested' && !cleanFeedback) {
-    throw new Error('Please describe the changes you would like before submitting.');
-  }
+  const valid = parseServiceInput(submitMilestoneReviewInputSchema, {
+    id,
+    decision,
+    feedback,
+  });
+  const cleanFeedback = valid.decision === 'Changes Requested' ? valid.feedback : '';
 
   const {data, error} = await supabase
     .from('milestones')
     .update({
-      status: decision,
+      status: valid.decision,
       feedback: cleanFeedback,
     })
-    .eq('id', id)
+    .eq('id', valid.id)
     .select(MILESTONE_SELECT)
     .single();
 

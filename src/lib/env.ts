@@ -82,11 +82,23 @@ function validateSupabaseAnonKey(value: string): string | null {
 
 /**
  * Validates all public frontend environment variables in one place.
- * Throws a clear Error if any required variable is missing or malformed.
+ * Falls back to local in-memory demo mode when neither Supabase variable is set.
  */
-export function validateEnv(): AppEnv {
-  let rawUrl = readCleanEnv(import.meta.env.VITE_SUPABASE_URL);
-  let rawAnonKey = readCleanEnv(import.meta.env.VITE_SUPABASE_ANON_KEY);
+export function validateEnv(): {env: AppEnv; isDemoMode: boolean} {
+  const metaEnv = (import.meta as ImportMeta & {env?: Record<string, unknown>}).env ?? {};
+  let rawUrl = readCleanEnv(metaEnv.VITE_SUPABASE_URL);
+  let rawAnonKey = readCleanEnv(metaEnv.VITE_SUPABASE_ANON_KEY);
+
+  // When unconfigured (e.g. imported preview without .env), run with the in-memory stub
+  if (!rawUrl && !rawAnonKey) {
+    return {
+      env: {
+        supabaseUrl: '',
+        supabaseAnonKey: '',
+      },
+      isDemoMode: true,
+    };
+  }
 
   // Auto-recover cleanly if VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY were swapped
   if (
@@ -117,8 +129,11 @@ export function validateEnv(): AppEnv {
   }
 
   return {
-    supabaseUrl: rawUrl.replace(/\/+$/, ''),
-    supabaseAnonKey: rawAnonKey,
+    env: {
+      supabaseUrl: rawUrl.replace(/\/+$/, ''),
+      supabaseAnonKey: rawAnonKey,
+    },
+    isDemoMode: false,
   };
 }
 
@@ -126,11 +141,15 @@ let resolvedEnv: AppEnv = {
   supabaseUrl: '',
   supabaseAnonKey: '',
 };
+let resolvedDemoMode = true;
 let resolvedError: Error | null = null;
 
 try {
-  resolvedEnv = validateEnv();
+  const result = validateEnv();
+  resolvedEnv = result.env;
+  resolvedDemoMode = result.isDemoMode;
 } catch (err) {
+  resolvedDemoMode = false;
   resolvedError =
     err instanceof Error
       ? err
@@ -139,4 +158,5 @@ try {
 }
 
 export const env: AppEnv = resolvedEnv;
+export const isDemoMode: boolean = resolvedDemoMode;
 export const envValidationError: Error | null = resolvedError;

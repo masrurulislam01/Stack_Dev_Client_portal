@@ -1,4 +1,4 @@
-import {getErrorMessage} from '../services/serviceUtils';
+import {getErrorMessage} from '@/services/serviceUtils';
 
 export function getFriendlyPaymentError(err: unknown): string {
   return getErrorMessage(

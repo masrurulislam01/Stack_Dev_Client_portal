@@ -1,8 +1,9 @@
-import type {InvoiceLineItem, InvoiceRecord, InvoiceStatus} from '../types/portal';
+import {AGENCY_INFO, type InvoiceStatus} from '@/config/constants';
+import type {InvoiceLineItem, InvoiceRecord} from '@/types/portal';
 
-export const AGENCY_NAME = 'Stack Dev';
-export const AGENCY_ADDRESS = 'Stack Dev, Savar, Dhaka';
-export const AGENCY_PHONE = '+880 1963-131282';
+export const AGENCY_NAME = AGENCY_INFO.name;
+export const AGENCY_ADDRESS = AGENCY_INFO.address;
+export const AGENCY_PHONE = AGENCY_INFO.phone;
 
 export function getTodayIsoDate(): string {
   return new Date().toLocaleDateString('en-CA');

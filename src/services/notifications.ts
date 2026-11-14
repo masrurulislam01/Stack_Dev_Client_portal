@@ -1,7 +1,13 @@
-import {supabase} from '../lib/supabase';
-import type {NotificationRow} from '../types/database';
-import type {NotificationRecord, NotificationType} from '../types/portal';
-import {getErrorMessage} from './serviceUtils';
+import type {NotificationType} from '@/config/constants';
+import {supabase} from '@/lib/supabase';
+import {getErrorMessage, parseServiceInput} from '@/services/serviceUtils';
+import type {NotificationRow} from '@/types/database';
+import type {NotificationRecord} from '@/types/portal';
+import {
+  createDispatchNotificationInputSchema,
+  createNotificationRowInputSchema,
+  updateNotificationInputSchema,
+} from '@/types/schemas';
 
 export interface CreateNotificationRowInput {
   userId: string;
@@ -80,17 +86,18 @@ export async function getById(id: string): Promise<NotificationRecord | null> {
 }
 
 export async function create(input: CreateNotificationRowInput): Promise<NotificationRecord> {
-  const normalizedLink = input.link.startsWith('/')
-    ? input.link.slice(0, 300)
-    : `/${input.link}`.slice(0, 300);
+  const valid = parseServiceInput(createNotificationRowInputSchema, input);
+  const normalizedLink = valid.link.startsWith('/')
+    ? valid.link.slice(0, 300)
+    : `/${valid.link}`.slice(0, 300);
 
   const {data, error} = await supabase
     .from('notifications')
     .insert({
-      user_id: input.userId,
-      type: input.type,
-      title: input.title.trim().slice(0, 160) || 'Notification',
-      body: input.body.trim().slice(0, 500) || 'New activity in your project.',
+      user_id: valid.userId,
+      type: valid.type,
+      title: valid.title.slice(0, 160) || 'Notification',
+      body: valid.body.slice(0, 500) || 'New activity in your project.',
       link: normalizedLink,
       is_read: false,
     })
@@ -104,24 +111,20 @@ export async function create(input: CreateNotificationRowInput): Promise<Notific
   return mapNotificationRow(data as NotificationRow);
 }
 
-/**
- * Dispatches notifications to matching profile user_ids for a role/client.
- * When invoked from a non-admin session, Supabase RLS restricts cross-user inserts,
- * so this helper handles restricted recipients gracefully without breaking the primary action.
- */
 export async function dispatchNotification(
   input: CreateDispatchNotificationInput,
 ): Promise<void> {
-  const normalizedLink = input.link.startsWith('/')
-    ? input.link.slice(0, 300)
-    : `/${input.link}`.slice(0, 300);
+  const valid = parseServiceInput(createDispatchNotificationInputSchema, input);
+  const normalizedLink = valid.link.startsWith('/')
+    ? valid.link.slice(0, 300)
+    : `/${valid.link}`.slice(0, 300);
 
   try {
     let profileQuery = supabase.from('profiles').select('id');
-    if (input.recipientRole === 'admin') {
+    if (valid.recipientRole === 'admin') {
       profileQuery = profileQuery.eq('role', 'admin');
-    } else if (input.clientId) {
-      profileQuery = profileQuery.eq('client_id', input.clientId);
+    } else if (valid.clientId) {
+      profileQuery = profileQuery.eq('client_id', valid.clientId);
     } else {
       return;
     }
@@ -133,9 +136,9 @@ export async function dispatchNotification(
 
     const rows = recipients.map((r) => ({
       user_id: String(r.id),
-      type: input.type,
-      title: input.title.trim().slice(0, 160) || 'Notification',
-      body: input.body.trim().slice(0, 500) || 'New activity in your project.',
+      type: valid.type,
+      title: valid.title.slice(0, 160) || 'Notification',
+      body: valid.body.slice(0, 500) || 'New activity in your project.',
       link: normalizedLink,
       is_read: false,
     }));
@@ -150,9 +153,11 @@ export async function update(
   id: string,
   input: {isRead: boolean},
 ): Promise<NotificationRecord> {
+  const valid = parseServiceInput(updateNotificationInputSchema, input);
+
   const {data, error} = await supabase
     .from('notifications')
-    .update({is_read: input.isRead})
+    .update({is_read: valid.isRead})
     .eq('id', id)
     .select('id, user_id, type, title, body, link, is_read, created_at')
     .single();
@@ -188,9 +193,6 @@ export async function remove(id: string): Promise<void> {
   }
 }
 
-/**
- * Subscribe to Supabase Realtime updates ONLY on `notifications` for the active user.
- */
 export function subscribeToNotifications(
   userId: string,
   onChange: () => void,
